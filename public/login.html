@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belépés – Travelpont Portal</title>
+    <meta name="theme-color" content="#0e7490">
+    <link rel="stylesheet" href="css/portal.css">
+    <style>
+        .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
+        .login-box { width: 100%; max-width: 400px; }
+        .login-logo { text-align: center; margin-bottom: 32px; }
+        .login-logo-icon {
+            width: 52px; height: 52px; background: linear-gradient(135deg, var(--teal), #0b5a70);
+            border-radius: 16px; display: inline-flex; align-items: center; justify-content: center;
+            font-size: 26px; box-shadow: 0 4px 20px rgba(14,116,144,0.35); margin-bottom: 12px;
+        }
+        .login-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.3rem; }
+        .login-title em { font-style: normal; color: var(--gold); }
+        .login-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
+        .login-error {
+            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); border-radius: var(--radius-md);
+            padding: 12px 16px; font-size: 14px; color: #fca5a5; margin-bottom: 20px; display: none; gap: 8px;
+        }
+        .password-wrapper { position: relative; }
+        .password-toggle { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; }
+        .login-footer { text-align: center; margin-top: 20px; color: var(--text-muted); font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-box">
+            <div class="login-logo">
+                <div class="login-logo-icon">✈️</div>
+                <div class="login-title">Travel<em>Pont</em> Portal</div>
+            </div>
+
+            <div class="login-card">
+                <div class="login-error" id="loginError">
+                    <span>⚠️ <span id="loginErrorText"></span></span>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="email">Email cím</label>
+                    <input type="email" id="email" class="input-field" placeholder="pelda@email.hu" autocomplete="email">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="password">Jelszó</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" class="input-field" placeholder="••••••••" autocomplete="current-password" style="padding-right:46px;">
+                        <button class="password-toggle" id="passwordToggle" type="button">👁️</button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-full" id="loginBtn">
+                    <span id="loginBtnText">Belépés</span>
+                    <div class="spinner" id="loginSpinner" style="display:none;"></div>
+                </button>
+            </div>
+
+            <div class="login-footer">Privát terület – csak meghívott szerkesztőknek</div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script type="module">
+        import { auth } from './js/firebase-config.js';
+        import { signInWithEmailAndPassword, onAuthStateChanged }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+        onAuthStateChanged(auth, user => { if (user) window.location.href = 'index.html'; });
+
+        document.getElementById('passwordToggle').addEventListener('click', () => {
+            const input = document.getElementById('password');
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            document.getElementById('passwordToggle').textContent = isHidden ? '🙈' : '👁️';
+        });
+
+        document.getElementById('email').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('password').focus(); });
+        document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+        document.getElementById('loginBtn').addEventListener('click', login);
+
+        async function login() {
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn      = document.getElementById('loginBtn');
+            const btnText  = document.getElementById('loginBtnText');
+            const spinner  = document.getElementById('loginSpinner');
+            const errorEl  = document.getElementById('loginError');
+
+            if (!email || !password) { showError('Kérlek töltsd ki mindkét mezőt!'); return; }
+
+            btn.disabled = true; btnText.textContent = 'Belépés...';
+            spinner.style.display = 'block'; errorEl.style.display = 'none';
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (err) {
+                showError(getErrorMessage(err.code));
+                btn.disabled = false; btnText.textContent = 'Belépés';
+                spinner.style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loginErrorText').textContent = message;
+            document.getElementById('loginError').style.display = 'flex';
+        }
+
+        function getErrorMessage(code) {
+            const m = {
+                'auth/user-not-found':          'Nem találunk ilyen email címet.',
+                'auth/wrong-password':          'Hibás jelszó.',
+                'auth/invalid-email':           'Érvénytelen email cím.',
+                'auth/too-many-requests':       'Túl sok próbálkozás. Várj egy kicsit.',
+                'auth/invalid-credential':      'Hibás email cím vagy jelszó.',
+                'auth/network-request-failed':  'Hálózati hiba.'
+            };
+            return m[code] || 'Belépési hiba. Próbáld újra.';
+        }
+    </script>
+</body>
+</html>

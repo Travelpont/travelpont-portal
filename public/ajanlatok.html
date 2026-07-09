@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ajánlatok – Travelpont Portal</title>
+    <meta name="theme-color" content="#0e7490">
+    <link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+    <div class="portal-layout">
+        <header class="navbar">
+            <div class="navbar-brand"><div class="navbar-title">✈️ Ajánlatok</div></div>
+            <div class="navbar-right">
+                <button class="btn btn-primary btn-sm" id="newBtn">+ Új ajánlat</button>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <div class="crud-layout">
+                <!-- ---- Lista panel ---- -->
+                <div class="card crud-list-panel">
+                    <input type="text" class="input-field crud-search" id="searchInput" placeholder="Keresés cím szerint…">
+                    <div id="listContainer"><p style="color:var(--text-muted); font-size:13px;">Betöltés…</p></div>
+                </div>
+
+                <!-- ---- Szerkesztő panel ---- -->
+                <div class="card crud-editor" id="editorPanel">
+                    <div class="crud-editor-empty">Válassz egy ajánlatot a listából, vagy hozz létre újat.</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script type="module">
+        import { guardPage, apiCall, toast } from './js/auth-guard.js';
+        import { initSidebar } from './js/sidebar.js';
+        import { API_CONFIG } from './js/api-config.js';
+        import { auth, storage } from './js/firebase-config.js';
+        import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+        import { generateWithAI } from './js/ai-helper.js';
+
+        const PROXY = API_CONFIG.AJANLAT_PROXY_URL;
+
+        let items = [];
+        let meta = { kategoriak: [], uticelok: [] };
+        let activeId = null;      // null = "új ajánlat" mód
+        let selectedKategoriak = [];
+
+        guardPage(async user => {
+            initSidebar(user);
+            await loadMeta();
+            await loadList();
+        });
+
+        document.getElementById('newBtn').addEventListener('click', () => selectItem(null));
+        document.getElementById('searchInput').addEventListener('input', debounce(() => loadList(), 350));
+
+        function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+        async function loadMeta() {
+            try {
+                meta = await apiCall(PROXY, { action: 'meta' });
+            } catch (e) {
+                toast('Metaadatok betöltése sikertelen: ' + e.message, 'error');
+            }
+        }
+
+        async function loadList() {
+            const search = document.getElementById('searchInput').value.trim();
+            try {
+                const data = await apiCall(PROXY, { action: 'list', extraQuery: { search, status: 'any', per_page: 100 } });
+                items = data.items || [];
+                renderList();
+            } catch (e) {
+                toast('Lista betöltése sikertelen: ' + e.message, 'error');
+            }
+        }
+
+        function renderList() {
+            const c = document.getElementById('listContainer');
+            if (items.length === 0) { c.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nincs találat.</p>'; return; }
+            c.innerHTML = items.map(it => `
+                <div class="crud-list-item ${it.id === activeId ? 'active' : ''}" data-id="${it.id}">
+                    ${it.thumbnail_url ? `<img class="crud-list-thumb" src="${it.thumbnail_url}">` : `<div class="crud-list-thumb"></div>`}
+                    <div style="min-width:0;">
+                        <div class="crud-list-title">${escapeHtml(it.title || '(cím nélkül)')}</div>
+                        <div class="crud-list-sub">${it.status === 'draft' ? 'Piszkozat' : (it.lejart ? 'Lejárt' : it.ar_format || '')}</div>
+                    </div>
+                </div>`).join('');
+            c.querySelectorAll('.crud-list-item').forEach(el => {
+                el.addEventListener('click', () => selectItem(parseInt(el.dataset.id)));
+            });
+        }
+
+        async function selectItem(id) {
+            activeId = id;
+            renderList();
+            if (id === null) { renderEditor(emptyItem()); return; }
+            try {
+                const item = await apiCall(PROXY, { action: 'get', extraQuery: { id } });
+                renderEditor(item);
+            } catch (e) {
+                toast('Betöltés sikertelen: ' + e.message, 'error');
+            }
+        }
+
+        function emptyItem() {
+            return { id: null, title: '', content: '', status: 'publish', kategoriak: [], thumbnail_url: '',
+                tpa_celallomas: '', tpa_indulas: '', tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
+                tpa_repjegy_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '2 fő, repülőjeggyel együtt',
+                tpa_ervenyes: '', tpa_kiwi_link: '', tpa_szallas_link: '', tpa_szallas_platform: '' };
+        }
+
+        function uticelOptionsHtml(selectedId) {
+            const opts = ['<option value="">— nincs kiválasztva —</option>']
+                .concat(meta.uticelok.map(u => `<option value="${u.id}" ${String(u.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(u.label)}</option>`));
+            return opts.join('');
+        }
+
+        function renderEditor(item) {
+            selectedKategoriak = [...(item.kategoriak || [])];
+
+            document.getElementById('editorPanel').innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2>${item.id ? 'Ajánlat szerkesztése' : 'Új ajánlat'}</h2>
+                    <select class="input-field" id="f_status" style="width:auto;">
+                        <option value="publish" ${item.status === 'publish' ? 'selected' : ''}>Publikált</option>
+                        <option value="draft" ${item.status === 'draft' ? 'selected' : ''}>Piszkozat</option>
+                    </select>
+                </div>
+
+                <div class="crud-section-title">Kiemelt kép</div>
+                <div class="crud-dropzone" id="dropzone">
+                    ${item.thumbnail_url
+                        ? `<img src="${item.thumbnail_url}">`
+                        : `<span class="crud-dropzone-label">${item.id ? 'Kattints ide a kép feltöltéséhez' : 'Előbb mentsd el az ajánlatot, utána tölthetsz fel képet'}</span>`}
+                </div>
+                <input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+                <div class="crud-section-title">Alapadatok</div>
+                <div class="input-group"><label class="input-label">Cím</label><input class="input-field" id="f_title" value="${escapeAttr(item.title)}" placeholder="pl. Amalfi-part 4 éjszaka"></div>
+                <div class="input-group">
+                    <button class="crud-ai-btn" id="aiBtn" type="button">✨ AI segítség a leíráshoz</button>
+                    <div class="crud-ai-panel" id="aiPanel" style="display:none;">
+                        <textarea class="input-field" id="aiPrompt" placeholder="Írd le pár szóban, miről szóljon (pl. '4 éjszaka Amalfi-parton, repülővel Salernóba')" rows="2"></textarea>
+                        <button class="btn btn-accent btn-sm" id="aiGenerateBtn" style="margin-top:8px;" type="button">Generálás</button>
+                    </div>
+                    <label class="input-label">Leírás</label>
+                    <textarea class="input-field" id="f_content" rows="5">${escapeHtml(item.content)}</textarea>
+                </div>
+
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Célállomás</label><input class="input-field" id="f_celallomas" value="${escapeAttr(item.tpa_celallomas)}" placeholder="pl. Amalfi-part, Olaszország"></div>
+                    <div class="input-group"><label class="input-label">Indulás helye</label><input class="input-field" id="f_indulas" value="${escapeAttr(item.tpa_indulas)}" placeholder="pl. Budapest"></div>
+                </div>
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Utazás időpontja</label><input class="input-field" id="f_idopont" value="${escapeAttr(item.tpa_idopont)}" placeholder="pl. 2026. szeptember 10–14."></div>
+                    <div class="input-group"><label class="input-label">Éjszakák száma</label><input class="input-field" type="number" min="0" id="f_ejszakak" value="${escapeAttr(item.tpa_ejszakak)}"></div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Úticél</label>
+                    <select class="input-field" id="f_uticel">${uticelOptionsHtml(item.tpa_uticel)}</select>
+                    <div class="input-hint">Az ajánlat automatikusan megjelenik a kiválasztott Úticél oldalán.</div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Kategóriák</label>
+                    <div class="crud-tag-grid" id="kategoriaGrid">
+                        ${meta.kategoriak.map(k => `<span class="crud-tag ${selectedKategoriak.includes(k.name) ? 'selected' : ''}" data-name="${escapeAttr(k.name)}">${escapeHtml(k.name)}</span>`).join('')}
+                    </div>
+                </div>
+
+                <div class="crud-section-title">Ár és érvényesség</div>
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Repjegy ár (Ft)</label><input class="input-field" type="number" min="0" id="f_repjegy" value="${escapeAttr(item.tpa_repjegy_ar)}"></div>
+                    <div class="input-group"><label class="input-label">Szállás ár (Ft)</label><input class="input-field" type="number" min="0" id="f_szallas_ar" value="${escapeAttr(item.tpa_szallas_ar)}"></div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Ár összesen (Ft) – ha üres, a repjegy+szállás összegét használjuk</label>
+                    <input class="input-field" type="number" min="0" id="f_ar" value="${escapeAttr(item.tpa_ar)}">
+                    <div class="crud-price-preview" id="pricePreview"></div>
+                </div>
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Ár megjegyzés</label><input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}"></div>
+                    <div class="input-group"><label class="input-label">Érvényes eddig</label><input class="input-field" type="date" id="f_ervenyes" value="${escapeAttr(item.tpa_ervenyes)}"></div>
+                </div>
+
+                <div class="crud-section-title">Affiliate linkek</div>
+                <div class="input-group"><label class="input-label">Kiwi.com deep link</label><input class="input-field" id="f_kiwi" value="${escapeAttr(item.tpa_kiwi_link)}"></div>
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Szállás link</label><input class="input-field" id="f_szallas_link" value="${escapeAttr(item.tpa_szallas_link)}"></div>
+                    <div class="input-group">
+                        <label class="input-label">Szállás platform</label>
+                        <select class="input-field" id="f_szallas_platform">
+                            <option value="" ${!item.tpa_szallas_platform ? 'selected' : ''}>— válassz —</option>
+                            <option value="szallas" ${item.tpa_szallas_platform === 'szallas' ? 'selected' : ''}>Szallas.hu</option>
+                            <option value="booking" ${item.tpa_szallas_platform === 'booking' ? 'selected' : ''}>Booking.com</option>
+                            <option value="egyeb" ${item.tpa_szallas_platform === 'egyeb' ? 'selected' : ''}>Egyéb</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:12px; margin-top:24px;">
+                    <button class="btn btn-primary" id="saveBtn">💾 Mentés</button>
+                    ${item.permalink ? `<a class="btn btn-ghost" href="${item.permalink}" target="_blank">Megnézem élesben ↗</a>` : ''}
+                    ${item.edit_url ? `<a class="btn btn-ghost" href="${item.edit_url}" target="_blank">WP admin ↗</a>` : ''}
+                </div>
+            `;
+
+            document.getElementById('kategoriaGrid').querySelectorAll('.crud-tag').forEach(tag => {
+                tag.addEventListener('click', () => {
+                    const name = tag.dataset.name;
+                    tag.classList.toggle('selected');
+                    selectedKategoriak = selectedKategoriak.includes(name)
+                        ? selectedKategoriak.filter(n => n !== name)
+                        : [...selectedKategoriak, name];
+                });
+            });
+
+            ['f_repjegy', 'f_szallas_ar', 'f_ar'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updatePricePreview);
+            });
+            updatePricePreview();
+
+            document.getElementById('aiBtn').addEventListener('click', () => {
+                const panel = document.getElementById('aiPanel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            });
+            document.getElementById('aiGenerateBtn').addEventListener('click', runAI);
+
+            document.getElementById('saveBtn').addEventListener('click', saveItem);
+
+            const dropzone = document.getElementById('dropzone');
+            dropzone.addEventListener('click', () => {
+                if (!activeId) { toast('Előbb mentsd el az ajánlatot, utána tölthetsz fel képet.', 'info'); return; }
+                document.getElementById('fileInput').click();
+            });
+            document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+        }
+
+        function updatePricePreview() {
+            const repjegy = parseFloat(document.getElementById('f_repjegy').value) || 0;
+            const szallas = parseFloat(document.getElementById('f_szallas_ar').value) || 0;
+            const ar = document.getElementById('f_ar').value;
+            const preview = document.getElementById('pricePreview');
+            if (ar) { preview.textContent = ''; return; }
+            const osszeg = repjegy + szallas;
+            preview.textContent = osszeg > 0 ? `Számított összeg: ${osszeg.toLocaleString('hu-HU')} Ft` : '';
+        }
+
+        async function runAI() {
+            const promptEl = document.getElementById('aiPrompt');
+            const btn = document.getElementById('aiGenerateBtn');
+            if (!promptEl.value.trim()) { toast('Írj néhány szót arról, miről szóljon a szöveg.', 'info'); return; }
+            btn.disabled = true; btn.textContent = 'Generálás…';
+            try {
+                const result = await generateWithAI('ajanlat', promptEl.value.trim());
+                if (result.leiras) document.getElementById('f_content').value = result.leiras;
+                toast('AI-szöveg beillesztve – nézd át mentés előtt!', 'success');
+            } catch (e) {
+                toast('AI hiba: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Generálás';
+            }
+        }
+
+        async function saveItem() {
+            const body = {
+                title: document.getElementById('f_title').value.trim(),
+                content: document.getElementById('f_content').value,
+                status: document.getElementById('f_status').value,
+                kategoriak: selectedKategoriak,
+                tpa_celallomas: document.getElementById('f_celallomas').value,
+                tpa_indulas: document.getElementById('f_indulas').value,
+                tpa_idopont: document.getElementById('f_idopont').value,
+                tpa_ejszakak: document.getElementById('f_ejszakak').value,
+                tpa_uticel: document.getElementById('f_uticel').value,
+                tpa_repjegy_ar: document.getElementById('f_repjegy').value,
+                tpa_szallas_ar: document.getElementById('f_szallas_ar').value,
+                tpa_ar: document.getElementById('f_ar').value,
+                tpa_ar_megjegyzes: document.getElementById('f_ar_megjegyzes').value,
+                tpa_ervenyes: document.getElementById('f_ervenyes').value,
+                tpa_kiwi_link: document.getElementById('f_kiwi').value,
+                tpa_szallas_link: document.getElementById('f_szallas_link').value,
+                tpa_szallas_platform: document.getElementById('f_szallas_platform').value,
+            };
+            if (!body.title) { toast('A cím megadása kötelező.', 'error'); return; }
+
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true; saveBtn.textContent = 'Mentés…';
+            try {
+                const saved = activeId
+                    ? await apiCall(PROXY, { action: 'update', extraQuery: { id: activeId }, body })
+                    : await apiCall(PROXY, { action: 'create', body });
+                activeId = saved.id;
+                toast('Elmentve!', 'success');
+                await loadList();
+                renderEditor(saved);
+            } catch (e) {
+                toast('Mentés sikertelen: ' + e.message, 'error');
+            } finally {
+                saveBtn.disabled = false; saveBtn.textContent = '💾 Mentés';
+            }
+        }
+
+        async function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file || !activeId) return;
+            const dropzone = document.getElementById('dropzone');
+            dropzone.innerHTML = '<div class="spinner"></div>';
+            try {
+                const uid = auth.currentUser.uid;
+                const path = `ajanlatok/${uid}/${Date.now()}_${file.name}`;
+                const storageRef = ref(storage, path);
+                await uploadBytes(storageRef, file);
+                const url = await getDownloadURL(storageRef);
+
+                const result = await apiCall(PROXY, { action: 'sideload', extraQuery: { id: activeId }, body: { url } });
+                dropzone.innerHTML = `<img src="${result.url}">`;
+                toast('Kép feltöltve!', 'success');
+                loadList();
+            } catch (e) {
+                toast('Kép feltöltése sikertelen: ' + e.message, 'error');
+                dropzone.innerHTML = '<span class="crud-dropzone-label">Kattints ide a kép feltöltéséhez</span>';
+            }
+        }
+
+        function escapeHtml(s) { return (s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+        function escapeAttr(s) { return (s ?? '').toString().replace(/"/g, '&quot;'); }
+    </script>
+</body>
+</html>
