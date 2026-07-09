@@ -193,6 +193,26 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 .crud-dropzone img { max-width: 100%; max-height: 180px; border-radius: var(--radius-sm); object-fit: cover; }
 .crud-dropzone-label { color: var(--text-muted); font-size: 13px; }
 
+/* ---- Quill rich text szerkesztő – sötét téma illesztés ---- */
+.ql-toolbar.ql-snow {
+    background: var(--bg-input); border: 1px solid var(--border) !important;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.ql-container.ql-snow {
+    background: var(--bg-input); border: 1px solid var(--border) !important; border-top: none !important;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    font-family: 'Inter', sans-serif; font-size: 14px;
+}
+.ql-editor { color: var(--text-primary); min-height: 160px; }
+.ql-editor.ql-blank::before { color: var(--text-muted); font-style: normal; }
+.ql-snow .ql-stroke { stroke: var(--text-secondary); }
+.ql-snow .ql-fill { fill: var(--text-secondary); }
+.ql-snow .ql-picker { color: var(--text-secondary); }
+.ql-snow .ql-picker-options { background: var(--bg-card); border-color: var(--border) !important; }
+.ql-snow.ql-toolbar button:hover .ql-stroke, .ql-snow .ql-toolbar button:hover .ql-stroke { stroke: var(--gold); }
+.ql-snow.ql-toolbar button:hover .ql-fill, .ql-snow .ql-toolbar button:hover .ql-fill { fill: var(--gold); }
+.ql-snow .ql-picker.ql-expanded .ql-picker-label { border-color: var(--border); }
+
 .crud-ai-btn {
     display: inline-flex; align-items: center; gap: 6px;
     background: transparent; border: 1px solid var(--gold-dim); color: var(--gold);
