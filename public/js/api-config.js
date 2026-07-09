@@ -2,21 +2,18 @@
 // Travelpont Portal – API konfiguráció
 // Verzió: 1.0.0
 //
-// FONTOS (F. fázis manuális lépés): az első `firebase deploy --only functions`
-// után a terminál kiírja a 4 function tényleges Cloud Run URL-jét
-// (europe-west1 régióban). Azokat kell ide bemásolni a lenti TODO helyekre.
-// Addig a Portál lokálisan (Firebase Emulator, `firebase emulators:start`)
-// tesztelhető a http://localhost-ös ágon.
+// A 2026-07-10-i első `firebase deploy --only functions` után kapott
+// tényleges function URL-ek (europe-west1 régió).
 // =====================================================
 
 const isLocal = window.location.hostname === 'localhost' ||
                 window.location.hostname === '127.0.0.1';
 
-// Cloud Run URL-ek (deploy után kitöltendő)
-const GENERATE_URL      = 'https://TODO-generatecontent-xxxxx-ew.a.run.app';
-const STATUS_URL        = 'https://TODO-serverstatus-xxxxx-ew.a.run.app';
-const AJANLAT_PROXY_URL = 'https://TODO-ajanlatproxy-xxxxx-ew.a.run.app';
-const UTICEL_PROXY_URL  = 'https://TODO-uticelproxy-xxxxx-ew.a.run.app';
+// Cloud Functions URL-ek
+const GENERATE_URL      = 'https://europe-west1-travelpont-portal.cloudfunctions.net/generateContent';
+const STATUS_URL        = 'https://europe-west1-travelpont-portal.cloudfunctions.net/serverStatus';
+const AJANLAT_PROXY_URL = 'https://europe-west1-travelpont-portal.cloudfunctions.net/ajanlatProxy';
+const UTICEL_PROXY_URL  = 'https://europe-west1-travelpont-portal.cloudfunctions.net/uticelProxy';
 
 export const API_CONFIG = {
     GENERATE_URL:      isLocal ? 'http://127.0.0.1:5001/travelpont-portal/europe-west1/generateContent' : GENERATE_URL,
