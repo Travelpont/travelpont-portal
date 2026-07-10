@@ -28,6 +28,17 @@ Szabályok:
 - Válaszolj KIZÁRÓLAG egy JSON objektummal, más szöveg nélkül, ebben a formában:
 {"leiras": "1-2 mondatos rövid szöveg", "tartalom": "<p>...</p><p>...</p>"}`;
 
+const POST_SYSTEM_PROMPT = `Instagram/TikTok közösségimédia-szövegíró vagy a Travelpont.hu utazási márkának.
+Feladatod egy rövid, lendületes poszt-szöveg (caption) megírása egy konkrét utazási ajánlathoz, a megadott adatok alapján.
+
+Szabályok:
+- Ne találj ki adatokat (árat, dátumot) – csak a megadottakat használd.
+- Rövid, ütős mondatok, mértékkel használt emoji (ne minden mondat végén).
+- Zárd egy figyelemfelkeltő CTA-val (pl. "Linkre kattintva foglalhatod!").
+- Adj 5-8 releváns magyar hashtaget (kisbetűvel, # nélküli szóközök nélkül, pl. "#utazas").
+- Válaszolj KIZÁRÓLAG egy JSON objektummal, más szöveg nélkül, ebben a formában:
+{"caption": "szöveg emojikkal, sortörésekkel", "hashtagek": ["#utazas", "#pelda"]}`;
+
 export function getSystemPrompt(entity) {
     return entity === 'uticel' ? UTICEL_SYSTEM_PROMPT : AJANLAT_SYSTEM_PROMPT;
 }
@@ -49,17 +60,15 @@ export function parseAIJson(content) {
     }
 }
 
-// ---- AI hívás: entity = 'ajanlat' | 'uticel', userPrompt = szabad szöveg ----
-export async function generateWithAI(entity, userPrompt) {
-    const messages = [
-        { role: 'system', content: getSystemPrompt(entity) },
-        { role: 'user', content: userPrompt },
-    ];
-
+// ---- Közös: system+user prompt elküldése a generateContent proxynak, JSON-válasz parse-olva ----
+async function callChatJson(systemPrompt, userPrompt) {
     const data = await apiCall(API_CONFIG.GENERATE_URL, {
         body: {
             model: API_CONFIG.MODEL_NORMAL,
-            messages,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+            ],
             max_tokens: API_CONFIG.MAX_TOKENS,
             temperature: API_CONFIG.TEMPERATURE,
         },
@@ -67,4 +76,26 @@ export async function generateWithAI(entity, userPrompt) {
 
     const content = data.choices?.[0]?.message?.content || '';
     return parseAIJson(content);
+}
+
+// ---- AI hívás: entity = 'ajanlat' | 'uticel', userPrompt = szabad szöveg ----
+export async function generateWithAI(entity, userPrompt) {
+    return callChatJson(getSystemPrompt(entity), userPrompt);
+}
+
+// ---- Instagram/TikTok poszt-szöveg generálása egy Ajánlat adataiból ----
+// adat: { celallomas, ar_format, idopont, ejszakak, ar_megjegyzes } – amelyik üres, kihagyjuk a promptból.
+export async function generatePostCaption(adat) {
+    const sorok = [];
+    if (adat.celallomas)    sorok.push(`Célállomás: ${adat.celallomas}`);
+    if (adat.idopont)       sorok.push(`Időpont: ${adat.idopont}`);
+    if (adat.ejszakak)      sorok.push(`Éjszakák száma: ${adat.ejszakak}`);
+    if (adat.ar_format)     sorok.push(`Ár: ${adat.ar_format}`);
+    if (adat.ar_megjegyzes) sorok.push(`Ár megjegyzés: ${adat.ar_megjegyzes}`);
+
+    if (sorok.length === 0) {
+        throw new Error('Előbb tölts ki legalább néhány adatot (célállomás, ár, időpont) a form-on.');
+    }
+
+    return callChatJson(POST_SYSTEM_PROMPT, sorok.join('\n'));
 }

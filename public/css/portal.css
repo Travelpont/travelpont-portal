@@ -213,14 +213,14 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 .ql-snow.ql-toolbar button:hover .ql-fill, .ql-snow .ql-toolbar button:hover .ql-fill { fill: var(--gold); }
 .ql-snow .ql-picker.ql-expanded .ql-picker-label { border-color: var(--border); }
 
-.crud-ai-btn {
+.crud-ai-btn, .crud-tool-btn {
     display: inline-flex; align-items: center; gap: 6px;
     background: transparent; border: 1px solid var(--gold-dim); color: var(--gold);
     border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12.5px; font-weight: 600;
     cursor: pointer; margin-bottom: 8px; transition: background var(--transition);
 }
-.crud-ai-btn:hover { background: var(--gold-dim); }
-.crud-ai-panel { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px; }
+.crud-ai-btn:hover, .crud-tool-btn:hover { background: var(--gold-dim); }
+.crud-ai-panel, .crud-tool-panel { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px; }
 
 .crud-tag-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .crud-tag {
