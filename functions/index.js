@@ -1,6 +1,6 @@
 // =====================================================
 // Travelpont Portal – Firebase Cloud Functions
-// Verzió: 1.0.0
+// Verzió: 1.1.0 – galeria_add/galeria_remove action mindkét proxyban (több kép/bejegyzés)
 //
 // Architektúra (az aktivbalaton-portal mintáját követve): a böngésző sosem
 // hívja közvetlenül a WordPress REST API-t. Ez a proxy-réteg Secret
@@ -236,6 +236,15 @@ exports.ajanlatProxy = onRequest(
             case 'sideload':
                 requireId(id);
                 return { url: `${WP_BASE}/tpa/v1/ajanlat/${id}/kep`, method: 'POST', body: JSON.stringify(req.body) };
+            case 'galeria_add':
+                requireId(id);
+                return { url: `${WP_BASE}/tpa/v1/ajanlat/${id}/galeria`, method: 'POST', body: JSON.stringify(req.body) };
+            case 'galeria_remove': {
+                requireId(id);
+                const kepId = req.query.kep_id;
+                if (!kepId) throw new Error('kep_id paraméter szükséges');
+                return { url: `${WP_BASE}/tpa/v1/ajanlat/${id}/galeria/${kepId}`, method: 'DELETE' };
+            }
             case 'meta':
                 return { url: `${WP_BASE}/tpa/v1/meta`, method: 'GET' };
             case 'status':
@@ -273,6 +282,15 @@ exports.uticelProxy = onRequest(
             case 'sideload':
                 requireId(id);
                 return { url: `${WP_BASE}/tpu/v1/uticel/${id}/kep`, method: 'POST', body: JSON.stringify(req.body) };
+            case 'galeria_add':
+                requireId(id);
+                return { url: `${WP_BASE}/tpu/v1/uticel/${id}/galeria`, method: 'POST', body: JSON.stringify(req.body) };
+            case 'galeria_remove': {
+                requireId(id);
+                const kepId = req.query.kep_id;
+                if (!kepId) throw new Error('kep_id paraméter szükséges');
+                return { url: `${WP_BASE}/tpu/v1/uticel/${id}/galeria/${kepId}`, method: 'DELETE' };
+            }
             case 'meta':
                 return { url: `${WP_BASE}/tpu/v1/meta`, method: 'GET' };
             case 'status':

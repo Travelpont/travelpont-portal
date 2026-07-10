@@ -52,6 +52,7 @@
         let metaFlat = [];    // meta action – teljes flat lista (szülő-választóhoz)
         let activeId = null;
         let contentQuill = null;  // a "Bemutató szöveg" rich text szerkesztő aktuális példánya
+        let currentItem = null;   // a szerkesztőben épp megnyitott úticél (galéria-frissítéshez kell)
 
         guardPage(async user => {
             initSidebar(user);
@@ -123,7 +124,7 @@
 
         function emptyItem() {
             return { id: null, title: '', content: '', status: 'publish', parent: 0, thumbnail_url: '', tpu_leiras: '',
-                seo_title: '', seo_metadesc: '' };
+                seo_title: '', seo_metadesc: '', galeria_ids: [], galeria_urls: [] };
         }
 
         // ---- Szülő-választó legördülő: fastruktúra behúzással, önmaga kizárva ----
@@ -138,6 +139,8 @@
         }
 
         function renderEditor(item) {
+            currentItem = item;
+
             document.getElementById('editorPanel').innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                     <h2>${item.id ? 'Úticél szerkesztése' : 'Új úticél'}</h2>
@@ -154,6 +157,11 @@
                         : `<span class="crud-dropzone-label">${item.id ? 'Kattints ide a kép feltöltéséhez' : 'Előbb mentsd el az úticélt, utána tölthetsz fel képet'}</span>`}
                 </div>
                 <input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+                <div class="crud-section-title">Galéria (további fotók)</div>
+                <div class="crud-gallery-grid" id="galeriaGridEl"></div>
+                <input type="file" id="galeriaFileInput" accept="image/*" style="display:none;">
+                ${!item.id ? `<div class="input-hint">Előbb mentsd el az úticélt, utána tölthetsz fel galéria-képeket.</div>` : ''}
 
                 <div class="crud-section-title">Alapadatok</div>
                 <div class="input-group"><label class="input-label">Cím</label><input class="input-field" id="f_title" value="${escapeAttr(item.title)}" placeholder="pl. Horvátország / Isztria / Rovinj"></div>
@@ -218,6 +226,61 @@
                 document.getElementById('fileInput').click();
             });
             document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+
+            renderGaleria();
+            document.getElementById('galeriaFileInput').addEventListener('change', handleGaleriaUpload);
+        }
+
+        // ---- Galéria: rács kirajzolása a currentItem.galeria_ids/galeria_urls alapján ----
+        function renderGaleria() {
+            const grid = document.getElementById('galeriaGridEl');
+            const ids  = currentItem.galeria_ids || [];
+            const urls = currentItem.galeria_urls || [];
+
+            grid.innerHTML = urls.map((url, i) => `
+                <div class="crud-gallery-item">
+                    <img src="${url}">
+                    <button class="crud-gallery-remove" type="button" data-id="${ids[i]}" title="Eltávolítás">✕</button>
+                </div>`).join('') + (activeId ? `<div class="crud-gallery-add" id="galeriaAddTile" title="Kép hozzáadása">+</div>` : '');
+
+            grid.querySelectorAll('.crud-gallery-remove').forEach(btn => {
+                btn.addEventListener('click', () => removeGaleriaKep(parseInt(btn.dataset.id)));
+            });
+            const addTile = document.getElementById('galeriaAddTile');
+            if (addTile) addTile.addEventListener('click', () => document.getElementById('galeriaFileInput').click());
+        }
+
+        async function handleGaleriaUpload(e) {
+            const file = e.target.files[0];
+            e.target.value = '';
+            if (!file || !activeId) return;
+            try {
+                const uid = auth.currentUser.uid;
+                const path = `uticelok/${uid}/galeria_${Date.now()}_${file.name}`;
+                const storageRef = ref(storage, path);
+                await uploadBytes(storageRef, file);
+                const url = await getDownloadURL(storageRef);
+
+                const result = await apiCall(PROXY, { action: 'galeria_add', extraQuery: { id: activeId }, body: { url } });
+                currentItem.galeria_ids  = result.galeria_ids;
+                currentItem.galeria_urls = result.galeria_urls;
+                renderGaleria();
+                toast('Galéria-kép hozzáadva!', 'success');
+            } catch (e) {
+                toast('Kép feltöltése sikertelen: ' + e.message, 'error');
+            }
+        }
+
+        async function removeGaleriaKep(kepId) {
+            try {
+                const result = await apiCall(PROXY, { action: 'galeria_remove', extraQuery: { id: activeId, kep_id: kepId }, method: 'DELETE' });
+                currentItem.galeria_ids  = result.galeria_ids;
+                currentItem.galeria_urls = result.galeria_urls;
+                renderGaleria();
+                toast('Galéria-kép eltávolítva.', 'success');
+            } catch (e) {
+                toast('Eltávolítás sikertelen: ' + e.message, 'error');
+            }
         }
 
         async function runAI() {
