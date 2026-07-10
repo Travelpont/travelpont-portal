@@ -32,6 +32,11 @@
                 </a>
             </div>
 
+            <div class="card fade-up" id="karbantartasPanel" style="padding:20px; margin-top:24px; display:none;">
+                <h3 style="margin-bottom:10px;">🛠️ Karbantartás</h3>
+                <div id="karbantartasContent"></div>
+            </div>
+
             <div style="margin-top:40px; font-size:12px; color:var(--text-muted);" id="statusLine">Szerver állapot ellenőrzése…</div>
         </main>
     </div>
@@ -45,6 +50,7 @@
 
         guardPage(async user => {
             initSidebar(user);
+            loadKarbantartas();
 
             try {
                 const status = await apiCall(API_CONFIG.STATUS_URL);
@@ -54,6 +60,34 @@
                 document.getElementById('statusLine').textContent = 'Szerver állapot nem elérhető (' + e.message + ')';
             }
         });
+
+        // ---- Lejáró/lejárt ajánlatok figyelmeztetés ----
+        async function loadKarbantartas() {
+            const panel = document.getElementById('karbantartasPanel');
+            const content = document.getElementById('karbantartasContent');
+            try {
+                const data = await apiCall(API_CONFIG.AJANLAT_PROXY_URL, { action: 'list', extraQuery: { status: 'publish', per_page: 200 } });
+                const items = data.items || [];
+                const lejartak = items.filter(it => it.lejart);
+                const lejarok  = items.filter(it => !it.lejart && it.hatralevo_napok !== null && it.hatralevo_napok >= 0 && it.hatralevo_napok <= 7);
+
+                if (lejartak.length === 0 && lejarok.length === 0) {
+                    content.innerHTML = '<p style="color:var(--text-secondary); font-size:14px;">✅ Minden publikált ajánlat rendben – nincs lejáró/lejárt.</p>';
+                } else {
+                    const reszek = [];
+                    if (lejartak.length > 0) {
+                        reszek.push(`<a href="ajanlatok.html?szuro=lejart" class="badge badge-red" style="font-size:13px; padding:6px 14px;">⚠️ ${lejartak.length} ajánlat már lejárt</a>`);
+                    }
+                    if (lejarok.length > 0) {
+                        reszek.push(`<a href="ajanlatok.html?szuro=lejaro" class="badge badge-gold" style="font-size:13px; padding:6px 14px;">⏳ ${lejarok.length} ajánlat lejár 7 napon belül</a>`);
+                    }
+                    content.innerHTML = reszek.join(' ');
+                }
+                panel.style.display = 'block';
+            } catch (e) {
+                console.error('Karbantartás-panel betöltése sikertelen:', e);
+            }
+        }
     </script>
 </body>
 </html>

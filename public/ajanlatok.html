@@ -22,6 +22,7 @@
             <div class="crud-layout">
                 <!-- ---- Lista panel ---- -->
                 <div class="card crud-list-panel">
+                    <div id="filterBanner" style="display:none; margin-bottom:10px;"></div>
                     <input type="text" class="input-field crud-search" id="searchInput" placeholder="Keresés cím szerint…">
                     <div id="listContainer"><p style="color:var(--text-muted); font-size:13px;">Betöltés…</p></div>
                 </div>
@@ -55,6 +56,9 @@
         let selectedKategoriak = [];
         let contentQuill = null; // a "Leírás" rich text szerkesztő aktuális példánya
 
+        // A Dashboard "Karbantartás" panel linkjei ?szuro=lejart|lejaro paraméterrel érkeznek
+        let activeFilter = new URLSearchParams(window.location.search).get('szuro');
+
         guardPage(async user => {
             initSidebar(user);
             await loadMeta();
@@ -85,10 +89,28 @@
             }
         }
 
+        // ---- Karbantartás-szűrő alkalmazása (Dashboard "lejárt"/"lejáró" linkjeiből) ----
+        function filterItems(list) {
+            if (activeFilter === 'lejart') return list.filter(it => it.lejart);
+            if (activeFilter === 'lejaro') return list.filter(it => !it.lejart && it.hatralevo_napok !== null && it.hatralevo_napok >= 0 && it.hatralevo_napok <= 7);
+            return list;
+        }
+
+        function updateFilterBanner() {
+            const banner = document.getElementById('filterBanner');
+            if (!activeFilter) { banner.style.display = 'none'; return; }
+            const label = activeFilter === 'lejart' ? '⚠️ Lejárt ajánlatok' : '⏳ Hamarosan lejáró ajánlatok (7 napon belül)';
+            banner.innerHTML = `<span class="badge badge-gold">${label}</span> <button class="btn btn-ghost btn-sm" id="clearFilterBtn" type="button" style="margin-top:6px;">✕ Szűrő törlése</button>`;
+            banner.style.display = 'block';
+            document.getElementById('clearFilterBtn').addEventListener('click', () => { activeFilter = null; renderList(); });
+        }
+
         function renderList() {
+            updateFilterBanner();
             const c = document.getElementById('listContainer');
-            if (items.length === 0) { c.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nincs találat.</p>'; return; }
-            c.innerHTML = items.map(it => `
+            const visible = filterItems(items);
+            if (visible.length === 0) { c.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nincs találat.</p>'; return; }
+            c.innerHTML = visible.map(it => `
                 <div class="crud-list-item ${it.id === activeId ? 'active' : ''}" data-id="${it.id}">
                     ${it.thumbnail_url ? `<img class="crud-list-thumb" src="${it.thumbnail_url}">` : `<div class="crud-list-thumb"></div>`}
                     <div style="min-width:0;">
