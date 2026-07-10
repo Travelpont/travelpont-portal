@@ -46,6 +46,7 @@
         import { generateWithAI, generatePostCaption, generateSeoSuggestion } from './js/ai-helper.js';
         import { setupQuillEditor, setQuillContent } from './js/quill-helper.js';
         import { buildKiwiLink } from './js/kiwi-link-builder.js';
+        import { airportDatalistOptionsHtml } from './js/iata-airports.js';
         import { attachCharCounter } from './js/char-counter.js';
 
         const PROXY = API_CONFIG.AJANLAT_PROXY_URL;
@@ -222,9 +223,10 @@
                     <label class="input-label">Kiwi.com deep link</label>
                     <button class="crud-tool-btn" id="kiwiBtn" type="button">🔗 Link összeállítása (IATA-kód + dátumok)</button>
                     <div class="crud-tool-panel" id="kiwiPanel" style="display:none;">
+                        <datalist id="iataDatalist">${airportDatalistOptionsHtml()}</datalist>
                         <div class="crud-row-2">
-                            <div class="input-group"><label class="input-label">Honnan (IATA)</label><input class="input-field" id="kiwiFrom" placeholder="pl. BUD" maxlength="3" style="text-transform:uppercase;"></div>
-                            <div class="input-group"><label class="input-label">Hova (IATA)</label><input class="input-field" id="kiwiTo" placeholder="pl. FCO" maxlength="3" style="text-transform:uppercase;"></div>
+                            <div class="input-group"><label class="input-label">Honnan (IATA vagy városnév)</label><input class="input-field" id="kiwiFrom" list="iataDatalist" placeholder="pl. Budapest vagy BUD" style="text-transform:uppercase;"></div>
+                            <div class="input-group"><label class="input-label">Hova (IATA vagy városnév)</label><input class="input-field" id="kiwiTo" list="iataDatalist" placeholder="pl. Róma vagy FCO" style="text-transform:uppercase;"></div>
                         </div>
                         <div class="crud-row-2">
                             <div class="input-group"><label class="input-label">Kiindulás dátuma</label><input class="input-field" type="date" id="kiwiDeparture"></div>
