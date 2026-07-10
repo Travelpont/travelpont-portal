@@ -39,6 +39,16 @@ Szabályok:
 - Válaszolj KIZÁRÓLAG egy JSON objektummal, más szöveg nélkül, ebben a formában:
 {"caption": "szöveg emojikkal, sortörésekkel", "hashtagek": ["#utazas", "#pelda"]}`;
 
+const SEO_SYSTEM_PROMPT = `Google-kereséshez SEO-szövegíró vagy a Travelpont.hu utazási márkának.
+Feladatod egy Google-találati SEO-cím és meta-leírás megírása a megadott cím+szöveg alapján.
+
+Szabályok:
+- SEO-cím ("seo_title"): max 60 karakter, tartalmazza a legfontosabb kulcsszót (célállomás/téma) és a "Travelpont" szót.
+- Meta-leírás ("seo_metadesc"): max 155 karakter, ütős, tartalmazza a fő kulcsszót, végén egy finom CTA (pl. "Nézd meg most!").
+- Ne találj ki adatokat – csak a megadott szöveget foglald össze/emeld ki.
+- Válaszolj KIZÁRÓLAG egy JSON objektummal, más szöveg nélkül, ebben a formában:
+{"seo_title": "...", "seo_metadesc": "..."}`;
+
 export function getSystemPrompt(entity) {
     return entity === 'uticel' ? UTICEL_SYSTEM_PROMPT : AJANLAT_SYSTEM_PROMPT;
 }
@@ -98,4 +108,19 @@ export async function generatePostCaption(adat) {
     }
 
     return callChatJson(POST_SYSTEM_PROMPT, sorok.join('\n'));
+}
+
+// ---- HTML-tagek eltávolítása (a Quill-tartalomból), csak az AI-prompthoz ----
+function stripHtml(html) {
+    return (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// ---- SEO cím + meta-leírás javaslat egy cím+HTML-tartalom párból ----
+export async function generateSeoSuggestion({ title, contentHtml }) {
+    const plainText = stripHtml(contentHtml).slice(0, 1500);
+    if (!title && !plainText) {
+        throw new Error('Előbb tölts ki egy címet vagy leírást, amiből az SEO-szöveg készülhet.');
+    }
+    const userPrompt = `Cím: ${title || '(nincs megadva)'}\n\nSzöveg:\n${plainText || '(nincs megadva)'}`;
+    return callChatJson(SEO_SYSTEM_PROMPT, userPrompt);
 }

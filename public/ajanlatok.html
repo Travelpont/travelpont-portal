@@ -42,9 +42,10 @@
         import { API_CONFIG } from './js/api-config.js';
         import { auth, storage } from './js/firebase-config.js';
         import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
-        import { generateWithAI, generatePostCaption } from './js/ai-helper.js';
+        import { generateWithAI, generatePostCaption, generateSeoSuggestion } from './js/ai-helper.js';
         import { setupQuillEditor, setQuillContent } from './js/quill-helper.js';
         import { buildKiwiLink } from './js/kiwi-link-builder.js';
+        import { attachCharCounter } from './js/char-counter.js';
 
         const PROXY = API_CONFIG.AJANLAT_PROXY_URL;
 
@@ -116,7 +117,8 @@
             return { id: null, title: '', content: '', status: 'publish', kategoriak: [], thumbnail_url: '',
                 tpa_celallomas: '', tpa_indulas: '', tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
                 tpa_repjegy_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '2 fő, repülőjeggyel együtt',
-                tpa_ervenyes: '', tpa_kiwi_link: '', tpa_szallas_link: '', tpa_szallas_platform: '' };
+                tpa_ervenyes: '', tpa_kiwi_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
+                seo_title: '', seo_metadesc: '' };
         }
 
         function uticelOptionsHtml(selectedId) {
@@ -239,6 +241,17 @@
                     <div class="input-hint">A cím/célállomás/ár/időpont mezők alapján generál – nem ment semmit a WP-be, csak másolásra szolgál.</div>
                 </div>
 
+                <div class="crud-section-title">🔍 SEO beállítások (Google-találat)</div>
+                <div class="input-group">
+                    <button class="crud-tool-btn" id="seoAiBtn" type="button">✨ AI-javaslat a cím/leírás alapján</button>
+                    <label class="input-label">SEO cím <span id="seoTitleCount" style="font-weight:400;">0</span>/60</label>
+                    <input class="input-field" id="f_seo_title" value="${escapeAttr(item.seo_title)}" maxlength="70" placeholder="Ha üresen hagyod, a WP/Yoast alapértelmezettet használja">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Meta-leírás <span id="seoMetadescCount" style="font-weight:400;">0</span>/155</label>
+                    <textarea class="input-field" id="f_seo_metadesc" rows="2" maxlength="200">${escapeHtml(item.seo_metadesc)}</textarea>
+                </div>
+
                 <div style="display:flex; gap:12px; margin-top:24px;">
                     <button class="btn btn-primary" id="saveBtn">💾 Mentés</button>
                     ${item.permalink ? `<a class="btn btn-ghost" href="${item.permalink}" target="_blank">Megnézem élesben ↗</a>` : ''}
@@ -286,6 +299,10 @@
             });
             document.getElementById('postGenerateBtn').addEventListener('click', runPostCaption);
             document.getElementById('postCopyBtn').addEventListener('click', copyPostCaption);
+
+            attachCharCounter('f_seo_title', 'seoTitleCount', 60);
+            attachCharCounter('f_seo_metadesc', 'seoMetadescCount', 155);
+            document.getElementById('seoAiBtn').addEventListener('click', runSeoSuggestion);
 
             document.getElementById('saveBtn').addEventListener('click', saveItem);
 
@@ -372,12 +389,38 @@
             }
         }
 
+        async function runSeoSuggestion() {
+            const btn = document.getElementById('seoAiBtn');
+            btn.disabled = true; btn.textContent = 'Generálás…';
+            try {
+                const result = await generateSeoSuggestion({
+                    title: document.getElementById('f_title').value,
+                    contentHtml: document.getElementById('f_content').value,
+                });
+                if (result.seo_title) {
+                    document.getElementById('f_seo_title').value = result.seo_title;
+                    document.getElementById('f_seo_title').dispatchEvent(new Event('input'));
+                }
+                if (result.seo_metadesc) {
+                    document.getElementById('f_seo_metadesc').value = result.seo_metadesc;
+                    document.getElementById('f_seo_metadesc').dispatchEvent(new Event('input'));
+                }
+                toast('SEO-javaslat beillesztve – nézd át mentés előtt!', 'success');
+            } catch (e) {
+                toast('AI hiba: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = '✨ AI-javaslat a cím/leírás alapján';
+            }
+        }
+
         async function saveItem() {
             const body = {
                 title: document.getElementById('f_title').value.trim(),
                 content: document.getElementById('f_content').value,
                 status: document.getElementById('f_status').value,
                 kategoriak: selectedKategoriak,
+                seo_title: document.getElementById('f_seo_title').value,
+                seo_metadesc: document.getElementById('f_seo_metadesc').value,
                 tpa_celallomas: document.getElementById('f_celallomas').value,
                 tpa_indulas: document.getElementById('f_indulas').value,
                 tpa_idopont: document.getElementById('f_idopont').value,
