@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Műhely – Travelpont Portal</title>
+    <meta name="theme-color" content="#0e7490">
+    <link rel="stylesheet" href="css/portal.css">
+    <style>
+        /* ---- AI Műhely oldal-specifikus stílusok (a portal.css változóira építve) ---- */
+        .tp-chat-wrap {
+            display: flex; flex-direction: column;
+            height: calc(100vh - 140px); min-height: 400px;
+            max-width: 860px; margin: 0 auto;
+        }
+        .tp-chat-messages {
+            flex: 1; overflow-y: auto; padding: 16px 4px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .tp-msg {
+            max-width: 85%; padding: 10px 14px; border-radius: 14px;
+            font-size: 14px; line-height: 1.55; word-wrap: break-word;
+        }
+        .tp-msg-user {
+            align-self: flex-end;
+            background: var(--teal, #0e7490); color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .tp-msg-assistant {
+            align-self: flex-start;
+            background: var(--card-bg, rgba(255,255,255,0.05));
+            border: 1px solid var(--border, rgba(255,255,255,0.08));
+            color: var(--text-primary, #f1f5f9);
+            border-bottom-left-radius: 4px;
+        }
+        .tp-msg-assistant ul { margin: 4px 0 4px 18px; padding: 0; }
+        .tp-msg-assistant code {
+            background: rgba(255,255,255,0.08); padding: 1px 5px;
+            border-radius: 4px; font-size: 12.5px;
+        }
+        .tp-md-h1, .tp-md-h2 { font-weight: 700; font-size: 15.5px; margin: 8px 0 2px; color: var(--gold, #f59e0b); }
+        .tp-md-h3, .tp-md-h4 { font-weight: 700; margin: 6px 0 2px; }
+        .tp-md-gap { height: 8px; }
+
+        .tp-chat-status {
+            display: none; font-size: 12.5px; color: var(--gold, #f59e0b);
+            padding: 4px 8px; animation: tpPulse 1.4s ease-in-out infinite;
+        }
+        @keyframes tpPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+        .tp-quick-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
+        .tp-quick-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border, rgba(255,255,255,0.1));
+            color: var(--text-secondary, #94a3b8);
+            border-radius: 999px; padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+        }
+        .tp-quick-btn:hover { color: var(--gold, #f59e0b); border-color: var(--gold, #f59e0b); }
+
+        .tp-chat-inputrow { display: flex; gap: 10px; align-items: flex-end; padding-top: 6px; }
+        .tp-chat-inputrow textarea { flex: 1; resize: none; min-height: 52px; max-height: 160px; }
+        .tp-usage { font-size: 11px; color: var(--text-muted, #475569); padding: 4px 2px 0; }
+
+        /* ---- Jóváhagyó kártya ---- */
+        .tp-proposal-card {
+            align-self: stretch; max-width: 100%;
+            background: rgba(245,158,11,0.06);
+            border: 1px solid rgba(245,158,11,0.35);
+            border-radius: 12px; padding: 14px 16px;
+        }
+        .tp-proposal-head { font-size: 14px; margin-bottom: 8px; color: var(--text-primary, #f1f5f9); }
+        .tp-proposal-reason { font-size: 12.5px; color: var(--text-secondary, #94a3b8); margin-top: 3px; }
+        .tp-proposal-warn { font-size: 12.5px; color: #fbbf24; margin-top: 5px; }
+        .tp-proposal-card .input-label { margin-top: 10px; display: block; }
+        .tp-proposal-card .input-label a { color: var(--gold, #f59e0b); }
+        .tp-proposal-html { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+        .tp-proposal-preview {
+            background: #fff; color: #1e293b; border-radius: 8px;
+            padding: 12px 16px; font-size: 13.5px; line-height: 1.6; margin-top: 4px;
+        }
+        .tp-proposal-preview h3 { margin: 10px 0 4px; }
+        .tp-proposal-actions { display: flex; gap: 10px; margin-top: 14px; }
+
+        .tp-chat-empty {
+            text-align: center; color: var(--text-muted, #475569);
+            font-size: 13.5px; margin: auto; max-width: 460px; line-height: 1.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="portal-layout">
+        <header class="navbar">
+            <div class="navbar-brand"><div class="navbar-title">✨ AI Műhely</div></div>
+            <div class="navbar-right">
+                <span class="tp-usage" id="usageInfo"></span>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <div class="tp-chat-wrap">
+                <div class="tp-chat-messages" id="chatMessages">
+                    <div class="tp-chat-empty" id="chatEmpty">
+                        👋 Szia! Én a TravelPont AI-segédje vagyok.<br>
+                        Kérhetsz tőlem úticél-leírást, esemény-cikket, Facebook-posztot,
+                        TikTok-forgatókönyvet vagy tartalomnaptárat. Friss adatokért a neten
+                        is keresek, és amit jóváhagysz, elmentem a weboldalra.<br>
+                        Kezdd egy gyorsgombbal, vagy írj szabadon!
+                    </div>
+                </div>
+                <div class="tp-chat-status" id="chatStatus"></div>
+                <div class="tp-quick-row" id="quickButtons"></div>
+                <div class="tp-chat-inputrow">
+                    <textarea class="input-field" id="chatInput"
+                        placeholder="pl. Írj bemutatót Isztriáról… (Enter = küldés, Shift+Enter = új sor)"></textarea>
+                    <button class="btn btn-primary" id="chatSendBtn">Küldés ➤</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script type="module">
+        import { guardPage } from './js/auth-guard.js';
+        import { initSidebar } from './js/sidebar.js';
+        import { initAiMuhely } from './js/ai-agent.js';
+
+        guardPage(user => {
+            initSidebar(user);
+            initAiMuhely();
+
+            // Üdvözlő szöveg eltüntetése az első üzenetnél
+            const empty = document.getElementById('chatEmpty');
+            const observer = new MutationObserver(() => {
+                if (document.querySelectorAll('#chatMessages .tp-msg').length > 0 && empty.parentNode) {
+                    empty.remove();
+                    observer.disconnect();
+                }
+            });
+            observer.observe(document.getElementById('chatMessages'), { childList: true });
+        });
+    </script>
+</body>
+</html>

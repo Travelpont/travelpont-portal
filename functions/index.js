@@ -1,6 +1,7 @@
 // =====================================================
 // Travelpont Portal – Firebase Cloud Functions
-// Verzió: 1.2.0 – galeria_caption action (kép-feliratok) mindkét proxyban
+// Verzió: 1.3.0 – aiAgent (AI Műhely, Claude agent NDJSON streaminggel) + blogProxy
+// Korábban: 1.2.0 – galeria_caption action (kép-feliratok) mindkét proxyban
 //
 // Architektúra (az aktivbalaton-portal mintáját követve): a böngésző sosem
 // hívja közvetlenül a WordPress REST API-t. Ez a proxy-réteg Secret
@@ -16,13 +17,17 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
+const Anthropic = require('@anthropic-ai/sdk');
+const { buildSystemBlocks } = require('./agent-prompts');
+const { AGENT_TOOL_DEFINITIONS, runAgentTool, TOOL_STATUS_LABELS } = require('./agent-tools');
 
 admin.initializeApp();
 
 // ---- Secrets – Secret Manager-ből ----
-const openaiKey  = defineSecret('OPENAI_API_KEY');
-const wpUser     = defineSecret('WP_USERNAME');
-const wpPassword = defineSecret('WP_APP_PASSWORD');
+const openaiKey    = defineSecret('OPENAI_API_KEY');
+const anthropicKey = defineSecret('ANTHROPIC_API_KEY');
+const wpUser       = defineSecret('WP_USERNAME');
+const wpPassword   = defineSecret('WP_APP_PASSWORD');
 
 // ---- WordPress alap URL ----
 const WP_BASE = 'https://travelpont.hu/wp-json';
@@ -312,3 +317,180 @@ exports.uticelProxy = onRequest(
         }
     })
 );
+
+// =====================================================
+// 5. Blog proxy – WP core REST (/wp/v2/posts)
+// A create MINDIG piszkozatot hoz létre (status kényszerítve) – az AI Műhely
+// esemény-cikkei így sosem élesednek jóváhagyás nélkül.
+// =====================================================
+exports.blogProxy = onRequest(
+    { region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB',
+      secrets: [wpUser, wpPassword], invoker: 'public' },
+    (req, res) => runWpProxy(req, res, (action, id, req) => {
+        switch (action) {
+            case 'list': {
+                const params = new URLSearchParams({ context: 'edit' });
+                ['per_page', 'page', 'search', 'status'].forEach(k => {
+                    if (req.query[k]) params.set(k, req.query[k]);
+                });
+                return { url: `${WP_BASE}/wp/v2/posts?${params}`, method: 'GET' };
+            }
+            case 'get':
+                requireId(id);
+                return { url: `${WP_BASE}/wp/v2/posts/${id}?context=edit`, method: 'GET' };
+            case 'create':
+                return { url: `${WP_BASE}/wp/v2/posts`, method: 'POST',
+                         body: JSON.stringify({ ...req.body, status: 'draft' }) };
+            case 'update':
+                requireId(id);
+                return { url: `${WP_BASE}/wp/v2/posts/${id}`, method: 'POST',
+                         body: JSON.stringify(req.body) };
+            default:
+                return null;
+        }
+    })
+);
+
+// =====================================================
+// 6. AI Műhely agent – Claude (Anthropic) NDJSON streaminggel
+// POST /aiAgent  body: { messages: [...] }
+//
+// A kliens a teljes eddigi beszélgetést küldi (az API stateless), a szerver
+// agent-loopot futtat: webes keresés (szerver-tool) + WP-olvasó toolok
+// szabadon, mentés viszont CSAK propose_save-ként megy le a kliensnek
+// jóváhagyó kártyára – az agent sosem ír közvetlenül a WordPressbe.
+//
+// NDJSON eventek a kliensnek (soronként egy JSON):
+//   {t:'status', text}                – folyamatjelző (tool-hívás történik)
+//   {t:'delta',  text}                – az agent szövegének következő darabja
+//   {t:'proposal', proposal}          – mentési javaslat (jóváhagyó kártya)
+//   {t:'done', newMessages, usage}    – kör vége; a kliens a newMessages-t
+//                                       hozzáfűzi a historyjához (a thinking/
+//                                       tool blokkokat VÁLTOZATLANUL kell
+//                                       visszaküldeni a következő körben)
+//   {t:'error', error}                – hiba
+// =====================================================
+const AGENT_MODEL          = 'claude-opus-4-8';
+const AGENT_MAX_TOKENS     = 16000;
+const AGENT_MAX_ITERATIONS = 12;
+
+exports.aiAgent = onRequest(
+    { region: 'europe-west1', timeoutSeconds: 300, memory: '512MiB',
+      secrets: [anthropicKey, wpUser, wpPassword], invoker: 'public' },
+    async (req, res) => {
+
+    setCORS(res);
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST')    { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+    const user = await verifyAuth(req, res);
+    if (!user) return;
+
+    const apiKey = anthropicKey.value();
+    if (!apiKey) { res.status(500).json({ error: 'Anthropic API kulcs nincs beállítva!' }); return; }
+
+    const messages = req.body?.messages;
+    if (!Array.isArray(messages) || messages.length === 0) {
+        res.status(400).json({ error: 'Hiányzó paraméter: messages' }); return;
+    }
+
+    // WP Basic Auth az olvasó toolokhoz (a runWpProxy mintája)
+    const credentials  = Buffer.from(`${wpUser.value()}:${wpPassword.value()}`).toString('base64');
+    const wpAuthHeader = { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/json' };
+
+    // NDJSON streaming válasz
+    res.set('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    res.set('X-Accel-Buffering', 'no');
+    const send = obj => res.write(JSON.stringify(obj) + '\n');
+
+    const client = new Anthropic({ apiKey });
+    const tools = [
+        { type: 'web_search_20260209', name: 'web_search', max_uses: 5 },
+        ...AGENT_TOOL_DEFINITIONS,
+    ];
+
+    const convo    = [...messages];
+    const startLen = convo.length;
+    const usage    = { input_tokens: 0, output_tokens: 0,
+                       cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+
+    try {
+        for (let iter = 0; iter < AGENT_MAX_ITERATIONS; iter++) {
+
+            const stream = client.messages.stream({
+                model: AGENT_MODEL,
+                max_tokens: AGENT_MAX_TOKENS,
+                thinking: { type: 'adaptive' },
+                system: buildSystemBlocks(),
+                tools,
+                messages: convo,
+            });
+
+            stream.on('streamEvent', ev => {
+                if (ev.type === 'content_block_start' && ev.content_block?.type === 'server_tool_use') {
+                    send({ t: 'status', text: TOOL_STATUS_LABELS.web_search });
+                }
+                if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+                    send({ t: 'delta', text: ev.delta.text });
+                }
+            });
+
+            const msg = await stream.finalMessage();
+
+            usage.input_tokens                += msg.usage?.input_tokens || 0;
+            usage.output_tokens               += msg.usage?.output_tokens || 0;
+            usage.cache_read_input_tokens     += msg.usage?.cache_read_input_tokens || 0;
+            usage.cache_creation_input_tokens += msg.usage?.cache_creation_input_tokens || 0;
+
+            convo.push({ role: 'assistant', content: msg.content });
+
+            // Szerver-tool (webes keresés) iterációs limit: automatikus folytatás
+            if (msg.stop_reason === 'pause_turn') continue;
+
+            if (msg.stop_reason === 'tool_use') {
+                const toolUses = msg.content.filter(b => b.type === 'tool_use');
+                const results  = [];
+
+                for (const tu of toolUses) {
+                    if (tu.name === 'propose_save') {
+                        send({ t: 'proposal', proposal: tu.input });
+                        results.push({
+                            type: 'tool_result', tool_use_id: tu.id,
+                            content: 'A mentési javaslat megjelent a szerkesztőnek jóváhagyó kártyán. Ne ismételd meg a teljes tartalmat, csak röviden zárd le a válaszod.',
+                        });
+                        continue;
+                    }
+                    send({ t: 'status', text: TOOL_STATUS_LABELS[tu.name] || `⚙️ ${tu.name}…` });
+                    try {
+                        const resultStr = await runAgentTool(tu.name, tu.input, wpAuthHeader);
+                        results.push({ type: 'tool_result', tool_use_id: tu.id, content: resultStr });
+                    } catch (err) {
+                        console.error(`[aiAgent] tool hiba (${tu.name}):`, err);
+                        results.push({ type: 'tool_result', tool_use_id: tu.id,
+                                       content: `Hiba a tool futtatásakor: ${err.message}`, is_error: true });
+                    }
+                }
+
+                convo.push({ role: 'user', content: results });
+                continue;
+            }
+
+            if (msg.stop_reason === 'refusal') {
+                send({ t: 'error', error: 'A modell biztonsági okból elutasította ezt a kérést. Fogalmazd át, vagy próbáld más témával.' });
+            } else if (msg.stop_reason === 'max_tokens') {
+                send({ t: 'error', error: 'A válasz elérte a hosszkorlátot és megszakadt. Kérj rövidebb vagy több részre bontott tartalmat.' });
+            }
+            break; // end_turn (vagy hibaág) – kész a kör
+        }
+
+        send({ t: 'done', newMessages: convo.slice(startLen), usage });
+        console.log(`[aiAgent] kör kész – user=${user.email} usage=${JSON.stringify(usage)}`);
+
+    } catch (err) {
+        console.error('[aiAgent] hiba:', err);
+        send({ t: 'error', error: 'Szerver hiba: ' + err.message });
+    }
+
+    res.end();
+});

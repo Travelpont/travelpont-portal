@@ -15,6 +15,7 @@ const SIDEBAR_W = '220px';
 export const NAV_ITEMS = [
     { href: 'ajanlatok.html', icon: '✈️', label: 'Ajánlatok', match: '/ajanlatok' },
     { href: 'uticelok.html',  icon: '🌍', label: 'Úticélok',  match: '/uticelok' },
+    { href: 'ai-muhely.html', icon: '✨', label: 'AI Műhely', match: '/ai-muhely' },
 ];
 
 function getInitials(user) {
