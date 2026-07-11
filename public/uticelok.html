@@ -57,7 +57,47 @@
         guardPage(async user => {
             initSidebar(user);
             await loadAll();
+            await applyAiProposal();
         });
+
+        // ---- AI Műhely kézbesítés: az ai-muhely.html „Szerkesztés az
+        // Úticéloknál" gombja localStorage-ba teszi a javaslatot; itt
+        // betöltjük a szerkesztőbe, de NEM mentünk – az a szerkesztő dolga. ----
+        async function applyAiProposal() {
+            const raw = localStorage.getItem('tp_ai_proposal');
+            if (!raw) return;
+            localStorage.removeItem('tp_ai_proposal');
+
+            let p;
+            try { p = JSON.parse(raw); } catch { return; }
+
+            try {
+                if (p.tipus === 'uticel_update' && p.id) {
+                    await selectItem(p.id);
+                } else {
+                    await selectItem(null);
+                    // Új, AI-ból érkező úticél biztonságos alapja: piszkozat
+                    document.getElementById('f_status').value = 'draft';
+                    if (p.parent_id) document.getElementById('f_parent').value = String(p.parent_id);
+                }
+
+                if (p.cim)    document.getElementById('f_title').value = p.cim;
+                if (p.leiras) document.getElementById('f_leiras').value = p.leiras;
+                if (p.tartalom_html) setQuillContent(contentQuill, 'f_content', p.tartalom_html);
+                if (p.seo_title) {
+                    const el = document.getElementById('f_seo_title');
+                    el.value = p.seo_title; el.dispatchEvent(new Event('input'));
+                }
+                if (p.seo_metadesc) {
+                    const el = document.getElementById('f_seo_metadesc');
+                    el.value = p.seo_metadesc; el.dispatchEvent(new Event('input'));
+                }
+
+                toast('✨ AI-javaslat betöltve – nézd át, tölts fel képet, majd 💾 Mentés!', 'info');
+            } catch (e) {
+                toast('AI-javaslat betöltése sikertelen: ' + e.message, 'error');
+            }
+        }
 
         document.getElementById('newBtn').addEventListener('click', () => selectItem(null));
         document.getElementById('searchInput').addEventListener('input', debounce(() => loadAll(), 350));

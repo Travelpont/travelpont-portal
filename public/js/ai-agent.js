@@ -191,7 +191,8 @@ function addProposalCard(p) {
         <label class="input-label">SEO meta-leírás</label>
         <textarea class="input-field" data-f="seo_metadesc" rows="2" maxlength="200">${escapeHtml(p.seo_metadesc || '')}</textarea>` : ''}
         <div class="tp-proposal-actions">
-            <button class="btn btn-primary btn-sm" data-act="save">💾 Mentés a weboldalra</button>
+            ${isUticel ? `<button class="btn btn-primary btn-sm" data-act="edit">📝 Szerkesztés az Úticéloknál</button>` : ''}
+            <button class="btn ${isUticel ? 'btn-ghost' : 'btn-primary'} btn-sm" data-act="save">💾 Mentés azonnal</button>
             <button class="btn btn-ghost btn-sm" data-act="dismiss">Elvetés</button>
         </div>`;
 
@@ -210,6 +211,28 @@ function addProposalCard(p) {
     });
 
     card.querySelector('[data-act="save"]').addEventListener('click', () => saveProposal(card, p));
+
+    // „Szerkesztés az Úticéloknál": NEM ment semmit – a (kártyán esetleg már
+    // átírt) javaslatot átadja az Úticélok szerkesztőnek (új fülön, hogy a
+    // chat megmaradjon), ott a szerkesztő tölt fel képet és Ő ment.
+    const editBtn = card.querySelector('[data-act="edit"]');
+    if (editBtn) {
+        editBtn.addEventListener('click', () => {
+            const handoff = {
+                tipus:        p.tipus,
+                id:           p.id || null,
+                parent_id:    p.parent_id || 0,
+                cim:          readCardField(card, 'cim', p.cim || ''),
+                leiras:       readCardField(card, 'leiras', p.leiras || ''),
+                tartalom_html: readCardField(card, 'tartalom_html', p.tartalom_html || ''),
+                seo_title:    readCardField(card, 'seo_title', p.seo_title || ''),
+                seo_metadesc: readCardField(card, 'seo_metadesc', p.seo_metadesc || ''),
+            };
+            localStorage.setItem('tp_ai_proposal', JSON.stringify(handoff));
+            window.open('uticelok.html', '_blank');
+            card.innerHTML = '<div class="tp-proposal-head">📝 Átadva az Úticélok szerkesztőnek (új fülön) – ott nézd át, tölts fel képet, és ott mentsd.</div>';
+        });
+    }
 
     elMessages.appendChild(card);
     scrollToBottom();
