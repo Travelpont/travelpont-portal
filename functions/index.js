@@ -454,7 +454,7 @@ exports.aiAgent = onRequest(
 
                 for (const tu of toolUses) {
                     if (tu.name === 'propose_save') {
-                        send({ t: 'proposal', proposal: tu.input });
+                        send({ t: 'proposal', proposal: tu.input, pid: tu.id });
                         results.push({
                             type: 'tool_result', tool_use_id: tu.id,
                             content: 'A mentési javaslat megjelent a szerkesztőnek jóváhagyó kártyán. Ne ismételd meg a teljes tartalmat, csak röviden zárd le a válaszod.',

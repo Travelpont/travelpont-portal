@@ -16,6 +16,43 @@ import { API_CONFIG } from './api-config.js';
 let history = [];      // verbatim Anthropic API üzenetek
 let busy = false;
 
+// ---- Beszélgetés-mentés a böngészőben: túléli a fülváltást/újratöltést ----
+const LS_HISTORY = 'tp_ai_chat_v1';
+const LS_HANDLED = 'tp_ai_handled_v1';   // már elintézett (mentett/elvetett/átadott) javaslatok tool_use-id-i
+let handledProposals = new Set();
+
+function saveHistory() {
+    try {
+        localStorage.setItem(LS_HISTORY, JSON.stringify(history));
+        localStorage.setItem(LS_HANDLED, JSON.stringify([...handledProposals]));
+    } catch {
+        // pl. QuotaExceeded nagyon hosszú beszélgetésnél – a chat memóriában megy tovább
+        console.warn('[AI Műhely] a beszélgetés túl nagy a helyi mentéshez – újratöltésnél elveszhet.');
+    }
+}
+
+function loadHistory() {
+    try {
+        history = JSON.parse(localStorage.getItem(LS_HISTORY) || '[]');
+        handledProposals = new Set(JSON.parse(localStorage.getItem(LS_HANDLED) || '[]'));
+    } catch {
+        history = [];
+        handledProposals = new Set();
+    }
+}
+
+function clearChat() {
+    localStorage.removeItem(LS_HISTORY);
+    localStorage.removeItem(LS_HANDLED);
+    history = [];
+    handledProposals = new Set();
+    window.location.reload();
+}
+
+function markHandled(pid) {
+    if (pid) { handledProposals.add(pid); saveHistory(); }
+}
+
 // ---- Gyorsgomb-sablonok ----
 const QUICK_PROMPTS = [
     { icon: '🌍', label: 'Úticél-leírás',      prompt: 'Írj teljes bemutató leírást a következő úticélhoz: ' },
@@ -41,6 +78,15 @@ export function initAiMuhely() {
     elStatus   = document.getElementById('chatStatus');
     elQuick    = document.getElementById('quickButtons');
 
+    // Korábbi beszélgetés visszatöltése (fülváltás/újratöltés után)
+    loadHistory();
+    renderTranscript();
+
+    const newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) newChatBtn.addEventListener('click', () => {
+        if (history.length === 0 || confirm('Új beszélgetést kezdesz? A mostani eltűnik.')) clearChat();
+    });
+
     elQuick.innerHTML = QUICK_PROMPTS.map((q, i) =>
         `<button class="tp-quick-btn" data-i="${i}" type="button">${q.icon} ${q.label}</button>`).join('');
     elQuick.querySelectorAll('.tp-quick-btn').forEach(btn => {
@@ -62,6 +108,35 @@ async function onSend() {
     if (!text || busy) return;
     elInput.value = '';
     await runTurn(text);
+}
+
+// ---- A mentett historyból újrarajzolja a látható beszélgetést ----
+// user string-üzenet → user buborék; assistant text-blokkok → assistant buborék;
+// propose_save tool_use → jóváhagyó kártya (ha még nincs elintézve);
+// tool-result user-üzenetek (tömb content) → nem látszanak.
+function renderTranscript() {
+    if (history.length === 0) return;
+
+    for (const msg of history) {
+        if (msg.role === 'user' && typeof msg.content === 'string') {
+            addBubble('user', escapeHtml(msg.content));
+            continue;
+        }
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+            const text = msg.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+            if (text.trim()) addBubble('assistant', renderMarkdown(text));
+            for (const b of msg.content) {
+                if (b.type === 'tool_use' && b.name === 'propose_save') {
+                    if (handledProposals.has(b.id)) {
+                        addBubble('assistant', '💾 <em>Mentési javaslat (már elintézve)</em>');
+                    } else {
+                        addProposalCard(b.input, b.id);
+                    }
+                }
+            }
+        }
+    }
+    scrollToBottom();
 }
 
 // =====================================================
@@ -122,11 +197,12 @@ async function runTurn(userText) {
                         scrollToBottom();
                         break;
                     case 'proposal':
-                        addProposalCard(ev.proposal);
+                        addProposalCard(ev.proposal, ev.pid);
                         break;
                     case 'done':
                         gotDone = true;
                         history.push(...(ev.newMessages || []));
+                        saveHistory();
                         logUsage(ev.usage);
                         break;
                     case 'error':
@@ -142,12 +218,14 @@ async function runTurn(userText) {
             // A kapcsolat 'done' nélkül szakadt meg: a history-ból kivesszük a
             // user-üzenetet, hogy a következő kérés konzisztens maradjon.
             history.pop();
+            saveHistory();
             toast('A kapcsolat megszakadt válasz közben – próbáld újra.', 'error');
         }
         if (!assistantRaw) assistantBubble.remove();
 
     } catch (e) {
         history.pop(); // a felküldött user-üzenet visszavonása
+        saveHistory();
         assistantBubble.remove();
         toast('AI hiba: ' + e.message, 'error');
     } finally {
@@ -162,7 +240,7 @@ async function runTurn(userText) {
 // =====================================================
 // Jóváhagyó kártya (propose_save)
 // =====================================================
-function addProposalCard(p) {
+function addProposalCard(p, pid) {
     const card = document.createElement('div');
     card.className = 'tp-proposal-card';
 
@@ -207,10 +285,13 @@ function addProposalCard(p) {
     });
 
     card.querySelector('[data-act="dismiss"]').addEventListener('click', () => {
+        markHandled(pid);
         card.innerHTML = '<div class="tp-proposal-head" style="opacity:0.6;">✖️ Javaslat elvetve</div>';
     });
 
-    card.querySelector('[data-act="save"]').addEventListener('click', () => saveProposal(card, p));
+    card.querySelector('[data-act="save"]').addEventListener('click', () => saveProposal(card, p, pid));
+
+    removeEmptyNote();
 
     // „Szerkesztés az Úticéloknál": NEM ment semmit – a (kártyán esetleg már
     // átírt) javaslatot átadja az Úticélok szerkesztőnek (új fülön, hogy a
@@ -229,6 +310,7 @@ function addProposalCard(p) {
                 seo_metadesc: readCardField(card, 'seo_metadesc', p.seo_metadesc || ''),
             };
             localStorage.setItem('tp_ai_proposal', JSON.stringify(handoff));
+            markHandled(pid);
             window.open('uticelok.html', '_blank');
             card.innerHTML = '<div class="tp-proposal-head">📝 Átadva az Úticélok szerkesztőnek (új fülön) – ott nézd át, tölts fel képet, és ott mentsd.</div>';
         });
@@ -243,7 +325,7 @@ function readCardField(card, name, fallback) {
     return el ? el.value : fallback;
 }
 
-async function saveProposal(card, p) {
+async function saveProposal(card, p, pid) {
     const saveBtn = card.querySelector('[data-act="save"]');
     saveBtn.disabled = true; saveBtn.textContent = 'Mentés…';
 
@@ -306,6 +388,7 @@ async function saveProposal(card, p) {
             throw new Error('Ismeretlen javaslat-típus: ' + p.tipus);
         }
 
+        markHandled(pid);
         card.innerHTML = `<div class="tp-proposal-head">✅ Elmentve!
             ${p.tipus !== 'uticel_update' ? ' (piszkozatként – élesítés a megfelelő modulban/WP-adminban)' : ''}
             ${savedLink ? ` <a href="${savedLink}" target="_blank">Megnézem ↗</a>` : ''}</div>`;
@@ -320,7 +403,12 @@ async function saveProposal(card, p) {
 // =====================================================
 // Megjelenítés-segédek
 // =====================================================
+function removeEmptyNote() {
+    document.getElementById('chatEmpty')?.remove();
+}
+
 function addBubble(role, html) {
+    removeEmptyNote();
     const div = document.createElement('div');
     div.className = `tp-msg tp-msg-${role}`;
     div.innerHTML = html;

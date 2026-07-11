@@ -93,6 +93,7 @@
             <div class="navbar-brand"><div class="navbar-title">✨ AI Műhely</div></div>
             <div class="navbar-right">
                 <span class="tp-usage" id="usageInfo"></span>
+                <button class="btn btn-ghost btn-sm" id="newChatBtn" title="A mostani beszélgetés törlése">🗑️ Új beszélgetés</button>
             </div>
         </header>
 
@@ -128,16 +129,7 @@
         guardPage(user => {
             initSidebar(user);
             initAiMuhely();
-
-            // Üdvözlő szöveg eltüntetése az első üzenetnél
-            const empty = document.getElementById('chatEmpty');
-            const observer = new MutationObserver(() => {
-                if (document.querySelectorAll('#chatMessages .tp-msg').length > 0 && empty.parentNode) {
-                    empty.remove();
-                    observer.disconnect();
-                }
-            });
-            observer.observe(document.getElementById('chatMessages'), { childList: true });
+            // (Az üdvözlő szöveget az ai-agent.js távolítja el az első buboréknál.)
         });
     </script>
 </body>
