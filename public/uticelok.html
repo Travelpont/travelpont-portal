@@ -164,8 +164,13 @@
 
         function emptyItem() {
             return { id: null, title: '', content: '', status: 'publish', parent: 0, thumbnail_url: '', tpu_leiras: '',
+                tpu_szint: '', tpu_penznem: '', tpu_nyelv: '', tpu_idozona: '', tpu_beutazas: '',
+                tpu_legjobb_idoszak: '', tpu_repuloter: '', tpu_repules_ido: '', tpu_terkep: '',
                 seo_title: '', seo_metadesc: '', galeria: [] };
         }
+
+        // A szint-választó lehetőségei (a WP plugin tpu_get_szintek()-jét tükrözi).
+        const SZINTEK = { orszag: 'Ország', regio: 'Régió / tájegység', varos: 'Város / település', egyeb: 'Egyéb terület' };
 
         // ---- Szülő-választó legördülő: fastruktúra behúzással, önmaga kizárva ----
         function parentOptionsHtml(currentId, selectedParent) {
@@ -204,7 +209,16 @@
                 ${!item.id ? `<div class="input-hint">Előbb mentsd el az úticélt, utána tölthetsz fel galéria-képeket.</div>` : ''}
 
                 <div class="crud-section-title">Alapadatok</div>
-                <div class="input-group"><label class="input-label">Cím</label><input class="input-field" id="f_title" value="${escapeAttr(item.title)}" placeholder="pl. Horvátország / Isztria / Rovinj"></div>
+                <div class="input-group"><label class="input-label">Cím</label><input class="input-field" id="f_title" value="${escapeAttr(item.title)}" placeholder="pl. Olaszország / Veneto / Velence"></div>
+
+                <div class="input-group">
+                    <label class="input-label">Szint</label>
+                    <select class="input-field" id="f_szint">
+                        <option value="">— válassz —</option>
+                        ${Object.entries(SZINTEK).map(([v, l]) => `<option value="${v}" ${item.tpu_szint === v ? 'selected' : ''}>${l}</option>`).join('')}
+                    </select>
+                    <div class="input-hint">Mi ez az úticél? Ettől függ az oldal felépítése és az itt kitölthető mezők. (A szint nem kötelező láncot — kis országnál kihagyható a régió.)</div>
+                </div>
 
                 <div class="input-group">
                     <label class="input-label">Szülő úticél</label>
@@ -226,6 +240,43 @@
                     <label class="input-label">Bemutató szöveg</label>
                     <div id="quill_content"></div>
                     <input type="hidden" id="f_content">
+                </div>
+
+                <div class="crud-section-title" id="szintFieldsTitle">📋 Adatok &amp; gyakorlati infó</div>
+                <div id="szintFields">
+                    <div class="input-group" data-szint="orszag">
+                        <label class="input-label">Pénznem</label>
+                        <input class="input-field" id="f_penznem" value="${escapeAttr(item.tpu_penznem)}" placeholder="pl. Euró (EUR)">
+                    </div>
+                    <div class="input-group" data-szint="orszag">
+                        <label class="input-label">Beszélt nyelv</label>
+                        <input class="input-field" id="f_nyelv" value="${escapeAttr(item.tpu_nyelv)}" placeholder="pl. olasz">
+                    </div>
+                    <div class="input-group" data-szint="orszag">
+                        <label class="input-label">Időzóna</label>
+                        <input class="input-field" id="f_idozona" value="${escapeAttr(item.tpu_idozona)}" placeholder="pl. CET (UTC+1)">
+                    </div>
+                    <div class="input-group" data-szint="orszag">
+                        <label class="input-label">Be- és kiutazási tudnivaló</label>
+                        <textarea class="input-field" id="f_beutazas" rows="2" placeholder="pl. EU-tagország, személyi igazolvány elég.">${escapeHtml(item.tpu_beutazas)}</textarea>
+                    </div>
+                    <div class="input-group" data-szint="regio varos">
+                        <label class="input-label">Legjobb utazási időszak</label>
+                        <input class="input-field" id="f_legjobb_idoszak" value="${escapeAttr(item.tpu_legjobb_idoszak)}" placeholder="pl. május–szeptember">
+                    </div>
+                    <div class="input-group" data-szint="varos">
+                        <label class="input-label">Legközelebbi repülőtér</label>
+                        <input class="input-field" id="f_repuloter" value="${escapeAttr(item.tpu_repuloter)}" placeholder="pl. Velence (VCE)">
+                    </div>
+                    <div class="input-group" data-szint="varos">
+                        <label class="input-label">Repülési idő Budapestről</label>
+                        <input class="input-field" id="f_repules_ido" value="${escapeAttr(item.tpu_repules_ido)}" placeholder="pl. kb. 1 óra 20 perc">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Google Maps beágyazási URL</label>
+                        <input class="input-field" id="f_terkep" value="${escapeAttr(item.tpu_terkep)}" placeholder="https://www.google.com/maps/embed?pb=...">
+                        <div class="input-hint">Google Maps → Megosztás → Térkép beágyazása → a HTML „src” értéke. Csak a https://www.google.com/maps/embed… kezdetű URL-t fogadja el.</div>
+                    </div>
                 </div>
 
                 <div class="crud-section-title">🔍 SEO beállítások (Google-találat)</div>
@@ -259,6 +310,19 @@
             document.getElementById('seoAiBtn').addEventListener('click', runSeoSuggestion);
 
             document.getElementById('saveBtn').addEventListener('click', saveItem);
+
+            // Szint-függő mezők mutatása/rejtése (a WP admin-szint.js logikáját tükrözi):
+            // üres szint = minden látszik; egyébként csak az adott szinthez tartozó.
+            const szintSelect = document.getElementById('f_szint');
+            function applySzintFields() {
+                const szint = szintSelect.value;
+                document.querySelectorAll('#szintFields [data-szint]').forEach(el => {
+                    const szintek = (el.getAttribute('data-szint') || '').split(/\s+/);
+                    el.style.display = (szint === '' || szintek.indexOf(szint) !== -1) ? '' : 'none';
+                });
+            }
+            szintSelect.addEventListener('change', applySzintFields);
+            applySzintFields();
 
             const dropzone = document.getElementById('dropzone');
             dropzone.addEventListener('click', () => {
@@ -386,6 +450,15 @@
                 status: document.getElementById('f_status').value,
                 parent: document.getElementById('f_parent').value,
                 tpu_leiras: document.getElementById('f_leiras').value,
+                tpu_szint: document.getElementById('f_szint').value,
+                tpu_penznem: document.getElementById('f_penznem').value,
+                tpu_nyelv: document.getElementById('f_nyelv').value,
+                tpu_idozona: document.getElementById('f_idozona').value,
+                tpu_beutazas: document.getElementById('f_beutazas').value,
+                tpu_legjobb_idoszak: document.getElementById('f_legjobb_idoszak').value,
+                tpu_repuloter: document.getElementById('f_repuloter').value,
+                tpu_repules_ido: document.getElementById('f_repules_ido').value,
+                tpu_terkep: document.getElementById('f_terkep').value,
                 seo_title: document.getElementById('f_seo_title').value,
                 seo_metadesc: document.getElementById('f_seo_metadesc').value,
             };
