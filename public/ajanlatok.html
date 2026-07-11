@@ -142,7 +142,7 @@
                 tpa_celallomas: '', tpa_indulas: '', tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
                 tpa_repjegy_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '2 fő, repülőjeggyel együtt',
                 tpa_ervenyes: '', tpa_kiwi_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
-                seo_title: '', seo_metadesc: '', galeria_ids: [], galeria_urls: [] };
+                seo_title: '', seo_metadesc: '', galeria: [] };
         }
 
         function uticelOptionsHtml(selectedId) {
@@ -348,20 +348,25 @@
             document.getElementById('galeriaFileInput').addEventListener('change', handleGaleriaUpload);
         }
 
-        // ---- Galéria: rács kirajzolása a currentItem.galeria_ids/galeria_urls alapján ----
+        // ---- Galéria: rács kirajzolása a currentItem.galeria (id/url/caption) alapján ----
         function renderGaleria() {
             const grid = document.getElementById('galeriaGridEl');
-            const ids  = currentItem.galeria_ids || [];
-            const urls = currentItem.galeria_urls || [];
+            const kepek = currentItem.galeria || [];
 
-            grid.innerHTML = urls.map((url, i) => `
+            grid.innerHTML = kepek.map(kep => `
                 <div class="crud-gallery-item">
-                    <img src="${url}">
-                    <button class="crud-gallery-remove" type="button" data-id="${ids[i]}" title="Eltávolítás">✕</button>
+                    <div class="crud-gallery-thumb">
+                        <img src="${kep.url}">
+                        <button class="crud-gallery-remove" type="button" data-id="${kep.id}" title="Eltávolítás">✕</button>
+                    </div>
+                    <input class="crud-gallery-caption" type="text" data-id="${kep.id}" value="${escapeAttr(kep.caption || '')}" placeholder="Felirat (pl. Positano)">
                 </div>`).join('') + (activeId ? `<div class="crud-gallery-add" id="galeriaAddTile" title="Kép hozzáadása">+</div>` : '');
 
             grid.querySelectorAll('.crud-gallery-remove').forEach(btn => {
                 btn.addEventListener('click', () => removeGaleriaKep(parseInt(btn.dataset.id)));
+            });
+            grid.querySelectorAll('.crud-gallery-caption').forEach(inp => {
+                inp.addEventListener('change', () => saveGaleriaCaption(parseInt(inp.dataset.id), inp.value));
             });
             const addTile = document.getElementById('galeriaAddTile');
             if (addTile) addTile.addEventListener('click', () => document.getElementById('galeriaFileInput').click());
@@ -379,8 +384,7 @@
                 const url = await getDownloadURL(storageRef);
 
                 const result = await apiCall(PROXY, { action: 'galeria_add', extraQuery: { id: activeId }, body: { url } });
-                currentItem.galeria_ids  = result.galeria_ids;
-                currentItem.galeria_urls = result.galeria_urls;
+                currentItem.galeria = result.galeria;
                 renderGaleria();
                 toast('Galéria-kép hozzáadva!', 'success');
             } catch (e) {
@@ -391,12 +395,23 @@
         async function removeGaleriaKep(kepId) {
             try {
                 const result = await apiCall(PROXY, { action: 'galeria_remove', extraQuery: { id: activeId, kep_id: kepId }, method: 'DELETE' });
-                currentItem.galeria_ids  = result.galeria_ids;
-                currentItem.galeria_urls = result.galeria_urls;
+                currentItem.galeria = result.galeria;
                 renderGaleria();
                 toast('Galéria-kép eltávolítva.', 'success');
             } catch (e) {
                 toast('Eltávolítás sikertelen: ' + e.message, 'error');
+            }
+        }
+
+        // A felirat a mezőből kilépve (change) mentődik; nem rajzoljuk újra a rácsot,
+        // hogy a fókusz/gépelés ne ugorjon el a többi mezőről.
+        async function saveGaleriaCaption(kepId, caption) {
+            try {
+                const result = await apiCall(PROXY, { action: 'galeria_caption', extraQuery: { id: activeId, kep_id: kepId }, body: { caption } });
+                currentItem.galeria = result.galeria;
+                toast('Felirat mentve.', 'success');
+            } catch (e) {
+                toast('Felirat mentése sikertelen: ' + e.message, 'error');
             }
         }
 

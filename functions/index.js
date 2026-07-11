@@ -1,6 +1,6 @@
 // =====================================================
 // Travelpont Portal – Firebase Cloud Functions
-// Verzió: 1.1.0 – galeria_add/galeria_remove action mindkét proxyban (több kép/bejegyzés)
+// Verzió: 1.2.0 – galeria_caption action (kép-feliratok) mindkét proxyban
 //
 // Architektúra (az aktivbalaton-portal mintáját követve): a böngésző sosem
 // hívja közvetlenül a WordPress REST API-t. Ez a proxy-réteg Secret
@@ -245,6 +245,12 @@ exports.ajanlatProxy = onRequest(
                 if (!kepId) throw new Error('kep_id paraméter szükséges');
                 return { url: `${WP_BASE}/tpa/v1/ajanlat/${id}/galeria/${kepId}`, method: 'DELETE' };
             }
+            case 'galeria_caption': {
+                requireId(id);
+                const kepId = req.query.kep_id;
+                if (!kepId) throw new Error('kep_id paraméter szükséges');
+                return { url: `${WP_BASE}/tpa/v1/ajanlat/${id}/galeria/${kepId}`, method: 'POST', body: JSON.stringify(req.body) };
+            }
             case 'meta':
                 return { url: `${WP_BASE}/tpa/v1/meta`, method: 'GET' };
             case 'status':
@@ -290,6 +296,12 @@ exports.uticelProxy = onRequest(
                 const kepId = req.query.kep_id;
                 if (!kepId) throw new Error('kep_id paraméter szükséges');
                 return { url: `${WP_BASE}/tpu/v1/uticel/${id}/galeria/${kepId}`, method: 'DELETE' };
+            }
+            case 'galeria_caption': {
+                requireId(id);
+                const kepId = req.query.kep_id;
+                if (!kepId) throw new Error('kep_id paraméter szükséges');
+                return { url: `${WP_BASE}/tpu/v1/uticel/${id}/galeria/${kepId}`, method: 'POST', body: JSON.stringify(req.body) };
             }
             case 'meta':
                 return { url: `${WP_BASE}/tpu/v1/meta`, method: 'GET' };
