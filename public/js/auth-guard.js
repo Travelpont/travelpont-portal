@@ -51,6 +51,19 @@ export async function apiCall(baseUrl, { action, extraQuery = {}, body, method }
     return data;
 }
 
+// ---- Fájlnév-tisztítás Storage-útvonalhoz ----
+// Ékezetek/szóközök/spec. karakterek → ASCII-biztos név. Ékezetes vagy szóközös
+// objektum-nevek 403-at (storage/unauthorized) okozhatnak a Storage-szabályok
+// egyszegmenses illesztésénél, és törött letöltési URL-eket adnak.
+export function safeFileName(name) {
+    const clean = (name || 'file')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')  // ékezetek eltávolítása
+        .replace(/[^A-Za-z0-9._-]+/g, '_')                 // minden más → _
+        .replace(/_+/g, '_')
+        .replace(/^[._]+/, '');
+    return clean || 'file';
+}
+
 // ---- Toast értesítés (a portal.css .toast osztályaihoz) ----
 export function toast(message, type = 'info') {
     let container = document.getElementById('toastContainer');

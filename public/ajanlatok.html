@@ -38,7 +38,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script type="module">
-        import { guardPage, apiCall, toast } from './js/auth-guard.js';
+        import { guardPage, apiCall, toast, safeFileName } from './js/auth-guard.js';
         import { initSidebar } from './js/sidebar.js';
         import { API_CONFIG } from './js/api-config.js';
         import { auth, storage } from './js/firebase-config.js';
@@ -378,7 +378,7 @@
             if (!file || !activeId) return;
             try {
                 const uid = auth.currentUser.uid;
-                const path = `ajanlatok/${uid}/galeria_${Date.now()}_${file.name}`;
+                const path = `ajanlatok/${uid}/galeria_${Date.now()}_${safeFileName(file.name)}`;
                 const storageRef = ref(storage, path);
                 await uploadBytes(storageRef, file);
                 const url = await getDownloadURL(storageRef);
@@ -562,7 +562,7 @@
             dropzone.innerHTML = '<div class="spinner"></div>';
             try {
                 const uid = auth.currentUser.uid;
-                const path = `ajanlatok/${uid}/${Date.now()}_${file.name}`;
+                const path = `ajanlatok/${uid}/${Date.now()}_${safeFileName(file.name)}`;
                 const storageRef = ref(storage, path);
                 await uploadBytes(storageRef, file);
                 const url = await getDownloadURL(storageRef);
