@@ -382,8 +382,11 @@ const AGENT_MODEL          = 'claude-opus-4-8';
 const AGENT_MAX_TOKENS     = 16000;
 const AGENT_MAX_ITERATIONS = 12;
 
+// timeoutSeconds: egy hosszú kör (több webes keresés + teljes országleírás
+// generálása) 5 percnél tovább tarthat – 300 mp-nél a futás félbevágódott
+// ('done' nélkül szakadt a stream). 900 mp bőven fedezi a legrosszabb esetet.
 exports.aiAgent = onRequest(
-    { region: 'europe-west1', timeoutSeconds: 300, memory: '512MiB',
+    { region: 'europe-west1', timeoutSeconds: 900, memory: '512MiB',
       secrets: [anthropicKey, wpUser, wpPassword], invoker: 'public' },
     async (req, res) => {
 
@@ -441,6 +444,13 @@ exports.aiAgent = onRequest(
             stream.on('streamEvent', ev => {
                 if (ev.type === 'content_block_start' && ev.content_block?.type === 'server_tool_use') {
                     send({ t: 'status', text: TOOL_STATUS_LABELS.web_search });
+                }
+                // Tool-input generálása (pl. a propose_save teljes HTML-tartalma) nem
+                // megy le deltaként – státusszal jelezzük, hogy nem fagyott le semmi.
+                if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use') {
+                    send({ t: 'status', text: ev.content_block.name === 'propose_save'
+                        ? '📝 Mentési javaslat összeállítása… (ez a leghosszabb lépés, akár 1-2 perc)'
+                        : (TOOL_STATUS_LABELS[ev.content_block.name] || `⚙️ ${ev.content_block.name}…`) });
                 }
                 if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
                     send({ t: 'delta', text: ev.delta.text });

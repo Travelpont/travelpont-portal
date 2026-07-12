@@ -529,9 +529,15 @@ async function runTurn(userText) {
         } else {
             // A kapcsolat 'done' nélkül szakadt meg: a history-ból kivesszük a
             // user-üzenetet, hogy a következő kérés konzisztens maradjon.
+            // FONTOS: maradandó hibabuborék is kell, nem csak toast – a toast
+            // eltűnik, és a szerkesztő nem tudja, hogy a kör elveszett.
             history.pop();
             await cleanupOrphanConv(isNewConv);
-            toast('A kapcsolat megszakadt válasz közben – próbáld újra.', 'error');
+            addBubble('assistant',
+                '⚠️ <strong>A válasz megszakadt, mielőtt elkészült volna.</strong> ' +
+                'A fenti szöveg és a kérésed NEM lett elmentve a beszélgetésbe – ' +
+                'küldd el újra ugyanazt a kérést. (A beszélgetés korábbi része megvan.)');
+            toast('A kapcsolat megszakadt válasz közben – kérd újra.', 'error');
         }
         if (!assistantRaw) assistantBubble.remove();
 
@@ -539,6 +545,9 @@ async function runTurn(userText) {
         history.pop(); // a felküldött user-üzenet visszavonása
         await cleanupOrphanConv(isNewConv);
         assistantBubble.remove();
+        addBubble('assistant',
+            `⚠️ <strong>Hiba történt, a kör nem lett elmentve:</strong> ${escapeHtml(e.message)}<br>` +
+            'Küldd el újra a kérést.');
         toast('AI hiba: ' + e.message, 'error');
     } finally {
         setStatus('');
