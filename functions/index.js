@@ -429,6 +429,13 @@ exports.aiAgent = onRequest(
     const usage    = { input_tokens: 0, output_tokens: 0,
                        cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
 
+    // A web_search_20260209 a háttérben kódvégrehajtó konténerben szűri a
+    // találatokat. Ha az iteráció folytatásakor (tool_result / pause_turn)
+    // függőben lévő ilyen tool-hívás van a convo-ban, a KÖVETKEZŐ kérésnek
+    // vissza kell adnia ugyanazt a container id-t, különben az API 400-at dob
+    // ("container_id is required when there are pending tool uses...").
+    let containerId = null;
+
     try {
         for (let iter = 0; iter < AGENT_MAX_ITERATIONS; iter++) {
 
@@ -439,6 +446,7 @@ exports.aiAgent = onRequest(
                 system: buildSystemBlocks({ ajanlatokEnabled, parentContext }),
                 tools,
                 messages: convo,
+                ...(containerId ? { container: containerId } : {}),
             });
 
             stream.on('streamEvent', ev => {
@@ -458,6 +466,7 @@ exports.aiAgent = onRequest(
             });
 
             const msg = await stream.finalMessage();
+            if (msg.container?.id) containerId = msg.container.id;
 
             usage.input_tokens                += msg.usage?.input_tokens || 0;
             usage.output_tokens               += msg.usage?.output_tokens || 0;
