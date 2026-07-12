@@ -90,12 +90,16 @@ export function createBlokkSzerkeszto({ containerId, initialHtml, galeriaProvide
 
     // ---- Blokk-DOM építés ----
     function build(leirasok) {
-        blocks = [];
         container.innerHTML = '';
-        leirasok.forEach(l => appendBlock(makeBlock(l)));
-        renderChrome();
+        blocks = leirasok.map(makeBlock);
+        rebuildDom();
     }
 
+    // A blokk váza (fejléc + üres törzs). A tényleges tartalom (Quill / kép)
+    // csak a DOM-hoz csatolás UTÁN kerül bele (fillBlock) — a Quill a
+    // HTML-beillesztéskor getComputedStyle-t használ a blokk-elemek
+    // (címsor, lista, bekezdés) felismeréséhez, ami leválasztott elemen
+    // nem működik, és a formázás elveszne.
     function makeBlock(leiras) {
         const el = document.createElement('div');
         el.className = 'blokk blokk--' + leiras.tipus;
@@ -109,21 +113,27 @@ export function createBlokkSzerkeszto({ containerId, initialHtml, galeriaProvide
         el.appendChild(torzs);
 
         if (leiras.tipus === 'szoveg') {
+            return { tipus: 'szoveg', el, quill: null, _html: leiras.html || '' };
+        }
+        return { tipus: 'kep', el, id: leiras.id, url: leiras.url, felirat: leiras.felirat, _kesz: false };
+    }
+
+    // Idempotens: csak az első hívás tölti fel a blokk törzsét.
+    function fillBlock(block) {
+        if (block.tipus === 'szoveg') {
+            if (block.quill) return;
             const qEl = document.createElement('div');
-            torzs.appendChild(qEl);
-            const quill = new Quill(qEl, {
+            block.el.querySelector('.blokk-torzs').appendChild(qEl);
+            block.quill = new Quill(qEl, {
                 theme: 'snow',
                 placeholder: 'Szöveg…',
                 modules: { toolbar: QUILL_TOOLBAR },
             });
-            if (leiras.html) quill.clipboard.dangerouslyPasteHTML(leiras.html);
-            return { tipus: 'szoveg', el, quill };
+            if (block._html) block.quill.clipboard.dangerouslyPasteHTML(block._html);
+        } else if (!block._kesz) {
+            renderKepTorzs(block, block.el.querySelector('.blokk-torzs'));
+            block._kesz = true;
         }
-
-        // kép-blokk
-        const block = { tipus: 'kep', el, id: leiras.id, url: leiras.url, felirat: leiras.felirat };
-        renderKepTorzs(block, torzs);
-        return block;
     }
 
     function renderKepTorzs(block, torzs) {
@@ -140,12 +150,6 @@ export function createBlokkSzerkeszto({ containerId, initialHtml, galeriaProvide
                 <img src="${escapeAttr(block.url)}" alt="${escapeAttr(block.felirat)}">
                 ${block.felirat ? `<div class="blokk-kep-felirat">${escapeAttr(block.felirat)}</div>` : ''}
             </div>`;
-    }
-
-    function appendBlock(block, index = blocks.length) {
-        blocks.splice(index, 0, block);
-        const next = container.children[index] || null;
-        container.insertBefore(block.el, next);
     }
 
     // ---- Blokk-króm (fejléc-gombok + beszúró sávok) újrarajzolása ----
@@ -198,7 +202,6 @@ export function createBlokkSzerkeszto({ containerId, initialHtml, galeriaProvide
         if (tipus === 'szoveg') {
             const block = makeBlock({ tipus: 'szoveg', html: '' });
             blocks.splice(index, 0, block);
-            container.insertBefore(block.el, beszuro.nextElementSibling);
             rebuildDom();
             block.quill.focus();
             return;
@@ -264,11 +267,13 @@ export function createBlokkSzerkeszto({ containerId, initialHtml, galeriaProvide
     }
 
     // A blokk-elemek újrarendezése a blocks tömb szerint. A Quill-példányok
-    // DOM-elemei áthelyeződnek, nem épülnek újra — a Quill ezt tűri.
+    // DOM-elemei áthelyeződnek, nem épülnek újra — a Quill ezt tűri. Az új
+    // (még üres törzsű) blokkok tartalma a csatolás UTÁN töltődik fel.
     function rebuildDom() {
         zarKepValaszto();
         container.querySelectorAll('.blokk-beszuro').forEach(b => b.remove());
         blocks.forEach(block => container.appendChild(block.el));
+        blocks.forEach(fillBlock);
         renderChrome();
     }
 
@@ -278,6 +283,7 @@ export function createBlokkSzerkeszto({ containerId, initialHtml, galeriaProvide
             if (block.tipus === 'kep') {
                 return `<img class="tpu-inline-kep" data-id="${escapeAttr(block.id)}" src="${escapeAttr(block.url)}" alt="${escapeAttr(block.felirat)}">`;
             }
+            if (!block.quill) return block._html || ''; // még fel nem töltött blokk
             const html = block.quill.root.innerHTML;
             return block.quill.getText().trim() === '' ? '' : html;
         }).join('');
