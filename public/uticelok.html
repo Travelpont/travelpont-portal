@@ -43,19 +43,16 @@
         import { auth, storage } from './js/firebase-config.js';
         import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
         import { generateWithAI, generateSeoSuggestion } from './js/ai-helper.js';
-        import { setupQuillEditor, setQuillContent, registerTpuKepBlot, insertTpuKep } from './js/quill-helper.js';
+        import { createBlokkSzerkeszto } from './js/blokk-szerkeszto.js';
         import { attachCharCounter } from './js/char-counter.js';
-
-        registerTpuKepBlot();
 
         const PROXY = API_CONFIG.UTICEL_PROXY_URL;
 
         let items = [];       // teljes lista (list action, thumbnail-lel is)
         let metaFlat = [];    // meta action – teljes flat lista (szülő-választóhoz)
         let activeId = null;
-        let contentQuill = null;  // a "Bemutató szöveg" rich text szerkesztő aktuális példánya
+        let contentBlokkok = null; // a "Bemutató szöveg" blokk-szerkesztő aktuális példánya
         let currentItem = null;   // a szerkesztőben épp megnyitott úticél (galéria-frissítéshez kell)
-        let contentLastRange = null; // a szerkesztő utoljára ismert kurzorpozíciója (a "Kép beszúrása" gomb a szerkesztőn kívül van)
 
         guardPage(async user => {
             initSidebar(user);
@@ -86,7 +83,7 @@
 
                 if (p.cim)    document.getElementById('f_title').value = p.cim;
                 if (p.leiras) document.getElementById('f_leiras').value = p.leiras;
-                if (p.tartalom_html) setQuillContent(contentQuill, 'f_content', p.tartalom_html);
+                if (p.tartalom_html && contentBlokkok) contentBlokkok.setHtml(p.tartalom_html);
                 if (p.szint) {
                     const el = document.getElementById('f_szint');
                     el.value = p.szint;
@@ -250,12 +247,8 @@
 
                 <div class="input-group">
                     <label class="input-label">Bemutató szöveg</label>
-                    <button class="crud-tool-btn" id="kepBeszurasBtn" type="button">🖼️ Kép beszúrása</button>
-                    <div class="crud-tool-panel" id="kepBeszurasPanel" style="display:none;">
-                        <div class="input-hint" style="margin-bottom:8px;">Kattints egy galéria-képre – a kurzor helyére kerül a szövegben.</div>
-                        <div class="crud-gallery-grid" id="kepBeszurasGrid"></div>
-                    </div>
-                    <div id="quill_content"></div>
+                    <div class="input-hint" style="margin-bottom:8px;">Blokkokból építkezhetsz: szöveg- és kép-blokkokat szúrhatsz be a „+" sávokkal, a ↑ ↓ gombokkal átrendezheted őket. A kép-blokkok a Galéria fotóiból választanak.</div>
+                    <div id="blokkSzerkeszto"></div>
                     <input type="hidden" id="f_content">
                 </div>
 
@@ -314,22 +307,11 @@
                 </div>
             `;
 
-            contentQuill = setupQuillEditor('quill_content', 'f_content', item.content, 'Az úticél hosszabb, weboldalon megjelenő bemutató szövege…');
-
-            // A "Kép beszúrása" gomb a szerkesztőn kívül van, ezért a fókusz
-            // elvesztése előtti utolsó kurzorpozíciót cache-eljük.
-            contentLastRange = null;
-            if (contentQuill) {
-                contentQuill.on('selection-change', range => {
-                    if (range) contentLastRange = range;
-                });
-            }
-            document.getElementById('kepBeszurasBtn').addEventListener('click', () => {
-                if (!contentQuill) { toast('A szerkesztő nem töltött be.', 'error'); return; }
-                const panel = document.getElementById('kepBeszurasPanel');
-                const nyit = panel.style.display === 'none';
-                if (nyit) renderKepBeszurasGrid();
-                panel.style.display = nyit ? 'block' : 'none';
+            contentBlokkok = createBlokkSzerkeszto({
+                containerId: 'blokkSzerkeszto',
+                initialHtml: item.content,
+                galeriaProvider: () => (currentItem && currentItem.galeria) || [],
+                onUres: () => toast('Előbb tölts fel képeket a Galéria részben, utána illesztheted őket blokk-ként a szövegbe.', 'info'),
             });
 
             document.getElementById('aiBtn').addEventListener('click', () => {
@@ -366,34 +348,6 @@
 
             renderGaleria();
             document.getElementById('galeriaFileInput').addEventListener('change', handleGaleriaUpload);
-        }
-
-        // ---- "Kép beszúrása" panel: a galéria-képek kattintható miniatűrjei ----
-        function renderKepBeszurasGrid() {
-            const grid = document.getElementById('kepBeszurasGrid');
-            const kepek = (currentItem && currentItem.galeria) || [];
-
-            if (!kepek.length) {
-                grid.innerHTML = `<div class="input-hint">Előbb tölts fel képeket a Galéria részben, utána ide illesztheted őket a szövegbe.</div>`;
-                return;
-            }
-
-            grid.innerHTML = kepek.map(kep => `
-                <div class="crud-gallery-item crud-gallery-item--valaszthato" data-id="${kep.id}" data-url="${escapeAttr(kep.url)}" data-caption="${escapeAttr(kep.caption || '')}" style="cursor:pointer;">
-                    <div class="crud-gallery-thumb"><img src="${kep.url}"></div>
-                </div>`).join('');
-
-            grid.querySelectorAll('.crud-gallery-item--valaszthato').forEach(el => {
-                el.addEventListener('click', () => {
-                    insertTpuKep(contentQuill, contentLastRange, {
-                        id: el.dataset.id,
-                        url: el.dataset.url,
-                        felirat: el.dataset.caption,
-                    });
-                    document.getElementById('kepBeszurasPanel').style.display = 'none';
-                    toast('Kép beszúrva a szövegbe.', 'success');
-                });
-            });
         }
 
         // ---- Galéria: rács kirajzolása a currentItem.galeria (id/url/caption) alapján ----
@@ -434,6 +388,7 @@
                 const result = await apiCall(PROXY, { action: 'galeria_add', extraQuery: { id: activeId }, body: { url } });
                 currentItem.galeria = result.galeria;
                 renderGaleria();
+                if (contentBlokkok) contentBlokkok.refreshGaleria();
                 toast('Galéria-kép hozzáadva!', 'success');
             } catch (e) {
                 toast('Kép feltöltése sikertelen: ' + e.message, 'error');
@@ -445,6 +400,7 @@
                 const result = await apiCall(PROXY, { action: 'galeria_remove', extraQuery: { id: activeId, kep_id: kepId }, method: 'DELETE' });
                 currentItem.galeria = result.galeria;
                 renderGaleria();
+                if (contentBlokkok) contentBlokkok.refreshGaleria();
                 toast('Galéria-kép eltávolítva.', 'success');
             } catch (e) {
                 toast('Eltávolítás sikertelen: ' + e.message, 'error');
@@ -457,6 +413,7 @@
             try {
                 const result = await apiCall(PROXY, { action: 'galeria_caption', extraQuery: { id: activeId, kep_id: kepId }, body: { caption } });
                 currentItem.galeria = result.galeria;
+                if (contentBlokkok) contentBlokkok.refreshGaleria();
                 toast('Felirat mentve.', 'success');
             } catch (e) {
                 toast('Felirat mentése sikertelen: ' + e.message, 'error');
@@ -471,7 +428,7 @@
             try {
                 const result = await generateWithAI('uticel', promptEl.value.trim());
                 if (result.leiras) document.getElementById('f_leiras').value = result.leiras;
-                if (result.tartalom) setQuillContent(contentQuill, 'f_content', result.tartalom);
+                if (result.tartalom && contentBlokkok) contentBlokkok.setHtml(result.tartalom);
                 toast('AI-szöveg beillesztve – nézd át mentés előtt!', 'success');
             } catch (e) {
                 toast('AI hiba: ' + e.message, 'error');
@@ -480,13 +437,21 @@
             }
         }
 
+        // A rejtett f_content mező szinkronizálása a blokk-szerkesztő tartalmával
+        // (mentés és SEO-javaslat előtt hívandó).
+        function syncContent() {
+            const html = contentBlokkok ? contentBlokkok.getHtml() : '';
+            document.getElementById('f_content').value = html;
+            return html;
+        }
+
         async function runSeoSuggestion() {
             const btn = document.getElementById('seoAiBtn');
             btn.disabled = true; btn.textContent = 'Generálás…';
             try {
                 const result = await generateSeoSuggestion({
                     title: document.getElementById('f_title').value,
-                    contentHtml: document.getElementById('f_content').value,
+                    contentHtml: syncContent(),
                 });
                 if (result.seo_title) {
                     document.getElementById('f_seo_title').value = result.seo_title;
@@ -507,7 +472,7 @@
         async function saveItem() {
             const body = {
                 title: document.getElementById('f_title').value.trim(),
-                content: document.getElementById('f_content').value,
+                content: syncContent(),
                 status: document.getElementById('f_status').value,
                 parent: document.getElementById('f_parent').value,
                 tpu_leiras: document.getElementById('f_leiras').value,
