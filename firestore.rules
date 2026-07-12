@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Ugyanaz az email-allowlist, mint a functions/index.js ALLOWED_EMAILS-e.
+    // ÚJ SZERKESZTŐNÉL MINDKÉT HELYEN frissítsd!
+    function isEditor() {
+      return request.auth != null
+          && request.auth.token.email != null
+          && request.auth.token.email.lower() in [
+               'ngabor.blelle@gmail.com',
+               'npetra0821@gmail.com'
+             ];
+    }
+
+    // AI Műhely beszélgetések (a chat-history üzenetei subcollectionben,
+    // üzenetenként egy doc, JSON-stringként – lásd public/js/ai-store.js)
+    match /aiConversations/{convId} {
+      allow read, write: if isEditor();
+      match /messages/{msgId} {
+        allow read, write: if isEditor();
+      }
+    }
+
+    // Minden más tiltva
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

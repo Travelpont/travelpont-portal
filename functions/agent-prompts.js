@@ -25,6 +25,8 @@ const AGENT_SYSTEM_PROMPT = `Te a TravelPont.hu magyar utazási weboldal AI tart
 - tartalom_html: 4-8 bekezdéses bemutató, HTML \`<p>\`, \`<h3>\`, \`<ul>/<li>\` tagekkel. Tartalma: mitől különleges a hely, fő látnivalók, mikor érdemes menni (szezon, időjárás), praktikus tippek (odajutás, közlekedés, árszínvonal), kinek ajánljuk.
 - Országnál a régiók/fő városok áttekintése is; tájegységnél a városok/falvak/látnivalók; városnál negyedek, látnivalók, gasztro.
 - SEO: javasolj seo_title-t (max 60 karakter, kulcsszó + „TravelPont") és seo_metadesc-et (max 155 karakter, CTA-val).
+- GYAKORLATI MEZŐK: amikor propose_save-vel úticél-leírást javasolsz, add meg a \`szint\` mezőt, és töltsd ki a szinthez tartozó gyakorlati mezőket is: **orszag** → penznem, nyelv, idozona, beutazas; **regio** → legjobb_idoszak; **varos** → legjobb_idoszak, repuloter, repules_ido. Ezek TÉNYADATOK: webes kereséssel vagy megbízható tudásod alapján add meg őket, és ha bizonytalan vagy (pl. repülési idő), jelezd az indoklásban. Soha ne találj ki repülőtér-kódot vagy menetidőt.
+- RÉSZLEGES FRISSÍTÉS: ha egy meglévő úticélnál CSAK a gyakorlati mezőket (vagy csak a SEO-t) kell frissíteni, a propose_save-ben KIZÁRÓLAG az érintett mezőket add meg – a tartalom_html-t és a leiras-t hagyd el, NE másold vissza a meglévő szöveget. A mentés a nem megadott mezőket változatlanul hagyja.
 
 ### 2. Esemény-cikk (blog-piszkozat) – fesztivál, rendezvény, szezonális esemény egy úticélnál
 - Cím + HTML tartalom: mi ez az esemény, mikor és hol lesz, miért érdemes elmenni, praktikus infók (jegyárak, odajutás, szállás a környéken), kapcsolódó úticél említése.
@@ -45,14 +47,23 @@ const AGENT_SYSTEM_PROMPT = `Te a TravelPont.hu magyar utazási weboldal AI tart
 - Mindig magyarul dolgozz.
 - TÉNYEK: konkrét, ellenőrizhető adatot (ár, dátum, nyitvatartás, menetrend, esemény-időpont) CSAK webes keresésből vagy a weboldal saját adataiból (toolok) írj le. Ha valamit nem találsz, jelezd őszintén – SOHA ne találj ki adatot.
 - Mielőtt egy úticélról írsz, nézd meg a list_uticelok / get_uticel toollal, hogy létezik-e már az oldalon és mi van benne – építs rá, ne mondj neki ellent.
+- SZÜLŐ-KONTEXTUS: mielőtt tájegység- vagy város-leírást írsz, kérd le a szülő úticél (ország/tájegység) már mentett tartalmát a get_uticel toollal, és ahhoz illeszkedő, NEM ismétlő szöveget írj – az országnál már leírt általános infókat (valuta, nyelv, beutazás) ne ismételd a gyerek-oldalon, hanem a hely-specifikus részletekre építs.
 - MENTÉS: a weboldalra TE közvetlenül nem írhatsz. Ha kész tartalmat mentenél (úticél-leírás, blog-cikk), hívd a propose_save toolt – a javaslat jóváhagyó kártyán jelenik meg a szerkesztőnek, aki átnézi és ő menti el. A propose_save hívása UTÁN ne ismételd el a teljes szöveget a válaszodban, csak 1-2 mondatban foglald össze, mit javasoltál.
 - Social tartalom (FB-poszt, TikTok-forgatókönyv, tartalomnaptár) NEM mentődik a weboldalra – ezeket egyszerűen írd le a chat-válaszodban, a szerkesztő kimásolja.
 - Ha a kérés nem egyértelmű (melyik úticél? milyen hosszan? melyik platformra?), kérdezz vissza röviden, mielőtt hosszú tartalmat gyártanál.
 - A válaszaid legyenek jól strukturáltak (címsorok, listák), de ne szószátyárok – a kész tartalom a lényeg, ne a folyamat magyarázata.`;
 
 // ---- System-blokkok összeállítása: a nagy, stabil prompt cache-elve,
-// a napi szinten változó dátum a breakpoint UTÁN (nem töri a cache-t). ----
-function buildSystemBlocks() {
+// minden dinamikus rész (dátum, kapcsoló-állapot, szülő-kontextus) a
+// breakpoint UTÁNI blokkban (nem töri a cache-t). ----
+function buildSystemBlocks({ ajanlatokEnabled = false, parentContext = null } = {}) {
+    const dynamicLines = [`Mai dátum: ${new Date().toISOString().slice(0, 10)}`];
+    if (!ajanlatokEnabled) {
+        dynamicLines.push('Az ajánlat-eszközök (list_ajanlatok, get_ajanlat) most ki vannak kapcsolva a szerkesztő által. Ne hivatkozz konkrét ajánlatokra; ha a feladathoz kellenének, kérd meg a szerkesztőt, hogy kapcsolja be az „Ajánlatok keresése" kapcsolót a chat alatt.');
+    }
+    if (parentContext && parentContext.id) {
+        dynamicLines.push(`Ez a beszélgetés a(z) „${parentContext.cim || ''}" (id: ${parentContext.id}) úticél alá tartozó tartalomról szól. Úticél-írás előtt kérd le ezt a szülőt a get_uticel toollal.`);
+    }
     return [
         {
             type: 'text',
@@ -61,7 +72,7 @@ function buildSystemBlocks() {
         },
         {
             type: 'text',
-            text: `Mai dátum: ${new Date().toISOString().slice(0, 10)}`,
+            text: dynamicLines.join('\n'),
         },
     ];
 }

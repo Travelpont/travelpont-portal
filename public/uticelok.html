@@ -84,6 +84,15 @@
                 if (p.cim)    document.getElementById('f_title').value = p.cim;
                 if (p.leiras) document.getElementById('f_leiras').value = p.leiras;
                 if (p.tartalom_html) setQuillContent(contentQuill, 'f_content', p.tartalom_html);
+                if (p.szint) {
+                    const el = document.getElementById('f_szint');
+                    el.value = p.szint;
+                    el.dispatchEvent(new Event('change'));  // szint-függő mezők láthatósága
+                }
+                [['penznem', 'f_penznem'], ['nyelv', 'f_nyelv'], ['idozona', 'f_idozona'],
+                 ['beutazas', 'f_beutazas'], ['legjobb_idoszak', 'f_legjobb_idoszak'],
+                 ['repuloter', 'f_repuloter'], ['repules_ido', 'f_repules_ido']]
+                 .forEach(([k, id]) => { if (p[k]) document.getElementById(id).value = p[k]; });
                 if (p.seo_title) {
                     const el = document.getElementById('f_seo_title');
                     el.value = p.seo_title; el.dispatchEvent(new Event('input'));

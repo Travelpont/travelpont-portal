@@ -353,7 +353,15 @@ exports.blogProxy = onRequest(
 
 // =====================================================
 // 6. AI Műhely agent – Claude (Anthropic) NDJSON streaminggel
-// POST /aiAgent  body: { messages: [...] }
+// POST /aiAgent  body: { messages: [...], ajanlatok?: bool,
+//                        parent_context?: { id, cim } }
+//
+// ajanlatok (alapból false): ha ki van kapcsolva, az agent meg sem kapja a
+// list_ajanlatok/get_ajanlat toolokat. FIGYELEM: a tool-lista változása
+// invalidálja az Anthropic prompt cache-t (a toolok a system elé renderelődnek),
+// így kapcsoló-váltás után egy „hideg" (drágább) kör jön – elfogadható.
+// parent_context: a kliens beszélgetés-fájából jövő szülő-úticél, a system
+// dinamikus blokkjába kerül (lásd buildSystemBlocks).
 //
 // A kliens a teljes eddigi beszélgetést küldi (az API stateless), a szerver
 // agent-loopot futtat: webes keresés (szerver-tool) + WP-olvasó toolok
@@ -393,6 +401,8 @@ exports.aiAgent = onRequest(
     if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: 'Hiányzó paraméter: messages' }); return;
     }
+    const ajanlatokEnabled = req.body?.ajanlatok === true;        // alapból KI
+    const parentContext    = req.body?.parent_context || null;    // { id, cim } | null
 
     // WP Basic Auth az olvasó toolokhoz (a runWpProxy mintája)
     const credentials  = Buffer.from(`${wpUser.value()}:${wpPassword.value()}`).toString('base64');
@@ -407,7 +417,8 @@ exports.aiAgent = onRequest(
     const client = new Anthropic({ apiKey });
     const tools = [
         { type: 'web_search_20260209', name: 'web_search', max_uses: 5 },
-        ...AGENT_TOOL_DEFINITIONS,
+        ...AGENT_TOOL_DEFINITIONS.filter(t =>
+            ajanlatokEnabled || (t.name !== 'list_ajanlatok' && t.name !== 'get_ajanlat')),
     ];
 
     const convo    = [...messages];
@@ -422,7 +433,7 @@ exports.aiAgent = onRequest(
                 model: AGENT_MODEL,
                 max_tokens: AGENT_MAX_TOKENS,
                 thinking: { type: 'adaptive' },
-                system: buildSystemBlocks(),
+                system: buildSystemBlocks({ ajanlatokEnabled, parentContext }),
                 tools,
                 messages: convo,
             });

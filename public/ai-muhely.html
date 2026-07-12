@@ -8,10 +8,70 @@
     <link rel="stylesheet" href="css/portal.css">
     <style>
         /* ---- AI Műhely oldal-specifikus stílusok (a portal.css változóira építve) ---- */
+        .tp-ai-layout {
+            display: grid; grid-template-columns: 280px 1fr; gap: 20px;
+            max-width: 1200px; margin: 0 auto;
+            height: calc(100vh - 140px); min-height: 400px;
+        }
         .tp-chat-wrap {
             display: flex; flex-direction: column;
-            height: calc(100vh - 140px); min-height: 400px;
-            max-width: 860px; margin: 0 auto;
+            height: 100%; min-height: 400px; min-width: 0;
+        }
+
+        /* ---- Beszélgetés-panel (bal oldal) ---- */
+        .tp-conv-panel {
+            display: flex; flex-direction: column; min-height: 0;
+            background: var(--card-bg, rgba(255,255,255,0.03));
+            border: 1px solid var(--border, rgba(255,255,255,0.08));
+            border-radius: 12px; padding: 12px;
+        }
+        .tp-conv-panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            font-weight: 700; font-size: 14px; margin-bottom: 8px;
+            color: var(--text-primary, #f1f5f9);
+        }
+        .tp-conv-list { flex: 1; overflow-y: auto; min-height: 0; }
+        .tp-conv-item {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 6px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+            flex-wrap: wrap;
+        }
+        .tp-conv-item:hover { background: rgba(255,255,255,0.05); }
+        .tp-conv-item.active { background: rgba(14,116,144,0.25); }
+        .tp-conv-main { min-width: 0; flex: 1; }
+        .tp-conv-title {
+            font-size: 13px; color: var(--text-primary, #f1f5f9);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .tp-conv-sub { font-size: 11px; color: var(--text-muted, #475569); }
+        .tp-conv-actions { display: none; gap: 2px; flex-shrink: 0; }
+        .tp-conv-item:hover .tp-conv-actions,
+        .tp-conv-item.active .tp-conv-actions { display: flex; }
+        .tp-conv-actions button {
+            background: none; border: none; cursor: pointer;
+            font-size: 12px; padding: 2px 3px; opacity: 0.75;
+        }
+        .tp-conv-actions button:hover { opacity: 1; }
+        .tp-conv-move { flex-basis: 100%; padding: 4px 0 2px; }
+        .tp-conv-move select { width: 100%; font-size: 12px; }
+        .tp-conv-note { color: var(--text-muted, #475569); font-size: 12.5px; padding: 6px 4px; }
+        .tp-conv-current {
+            font-size: 12.5px; color: var(--text-secondary, #94a3b8);
+            padding: 2px 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* ---- ✈️ Ajánlatok keresése kapcsoló ---- */
+        .tp-toggle {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 12.5px; color: var(--text-secondary, #94a3b8);
+            cursor: pointer; user-select: none; padding: 4px 2px;
+        }
+        .tp-toggle input { accent-color: var(--gold, #f59e0b); cursor: pointer; }
+
+        @media (max-width: 900px) {
+            .tp-ai-layout { grid-template-columns: 1fr; height: auto; }
+            .tp-conv-panel { max-height: 220px; }
+            .tp-chat-wrap { height: calc(100vh - 380px); }
         }
         .tp-chat-messages {
             flex: 1; overflow-y: auto; padding: 16px 4px;
@@ -71,6 +131,19 @@
         .tp-proposal-head { font-size: 14px; margin-bottom: 8px; color: var(--text-primary, #f1f5f9); }
         .tp-proposal-reason { font-size: 12.5px; color: var(--text-secondary, #94a3b8); margin-top: 3px; }
         .tp-proposal-warn { font-size: 12.5px; color: #fbbf24; margin-top: 5px; }
+        .tp-proposal-szint {
+            font-size: 11.5px; color: var(--gold, #f59e0b);
+            border: 1px solid rgba(245,158,11,0.4); border-radius: 999px;
+            padding: 1px 8px; margin-left: 6px; white-space: nowrap;
+        }
+        .tp-proposal-info-head {
+            font-weight: 700; font-size: 13px; margin-top: 14px;
+            color: var(--gold, #f59e0b);
+        }
+        .tp-proposal-note {
+            font-size: 12.5px; color: var(--text-secondary, #94a3b8);
+            margin-top: 10px;
+        }
         .tp-proposal-card .input-label { margin-top: 10px; display: block; }
         .tp-proposal-card .input-label a { color: var(--gold, #f59e0b); }
         .tp-proposal-html { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
@@ -93,27 +166,42 @@
             <div class="navbar-brand"><div class="navbar-title">✨ AI Műhely</div></div>
             <div class="navbar-right">
                 <span class="tp-usage" id="usageInfo"></span>
-                <button class="btn btn-ghost btn-sm" id="newChatBtn" title="A mostani beszélgetés törlése">🗑️ Új beszélgetés</button>
             </div>
         </header>
 
         <main class="page-content">
-            <div class="tp-chat-wrap">
-                <div class="tp-chat-messages" id="chatMessages">
-                    <div class="tp-chat-empty" id="chatEmpty">
-                        👋 Szia! Én a TravelPont AI-segédje vagyok.<br>
-                        Kérhetsz tőlem úticél-leírást, esemény-cikket, Facebook-posztot,
-                        TikTok-forgatókönyvet vagy tartalomnaptárat. Friss adatokért a neten
-                        is keresek, és amit jóváhagysz, elmentem a weboldalra.<br>
-                        Kezdd egy gyorsgombbal, vagy írj szabadon!
+            <div class="tp-ai-layout">
+                <aside class="tp-conv-panel">
+                    <div class="tp-conv-panel-head">
+                        <span>💬 Beszélgetések</span>
+                        <button class="btn btn-ghost btn-sm" id="newChatBtn" title="Új beszélgetés kezdése">➕ Új</button>
                     </div>
-                </div>
-                <div class="tp-chat-status" id="chatStatus"></div>
-                <div class="tp-quick-row" id="quickButtons"></div>
-                <div class="tp-chat-inputrow">
-                    <textarea class="input-field" id="chatInput"
-                        placeholder="pl. Írj bemutatót Isztriáról… (Enter = küldés, Shift+Enter = új sor)"></textarea>
-                    <button class="btn btn-primary" id="chatSendBtn">Küldés ➤</button>
+                    <div class="tp-conv-list" id="convList">
+                        <p class="tp-conv-note">Betöltés…</p>
+                    </div>
+                </aside>
+
+                <div class="tp-chat-wrap">
+                    <div class="tp-conv-current" id="convTitle"></div>
+                    <div class="tp-chat-messages" id="chatMessages">
+                        <div class="tp-chat-empty" id="chatEmpty">
+                            👋 Szia! Én a TravelPont AI-segédje vagyok.<br>
+                            Kérhetsz tőlem úticél-leírást, esemény-cikket, Facebook-posztot,
+                            TikTok-forgatókönyvet vagy tartalomnaptárat. Friss adatokért a neten
+                            is keresek, és amit jóváhagysz, elmentem a weboldalra.<br>
+                            Kezdd egy gyorsgombbal, vagy írj szabadon!
+                        </div>
+                    </div>
+                    <div class="tp-chat-status" id="chatStatus"></div>
+                    <div class="tp-quick-row" id="quickButtons"></div>
+                    <label class="tp-toggle" title="Ha be van kapcsolva, az AI lekérheti a weboldal ajánlatait (pl. FB-poszthoz, tartalomnaptárhoz). Leíráskéréshez hagyd kikapcsolva.">
+                        <input type="checkbox" id="ajanlatokToggle"> ✈️ Ajánlatok keresése
+                    </label>
+                    <div class="tp-chat-inputrow">
+                        <textarea class="input-field" id="chatInput"
+                            placeholder="pl. Írj bemutatót Isztriáról… (Enter = küldés, Shift+Enter = új sor)"></textarea>
+                        <button class="btn btn-primary" id="chatSendBtn">Küldés ➤</button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -128,8 +216,8 @@
 
         guardPage(user => {
             initSidebar(user);
-            initAiMuhely();
-            // (Az üdvözlő szöveget az ai-agent.js távolítja el az első buboréknál.)
+            // async: a beszélgetés-lista Firestore-ból töltődik
+            initAiMuhely().catch(e => console.error('[AI Műhely] init hiba:', e));
         });
     </script>
 </body>

@@ -24,7 +24,7 @@ const AGENT_TOOL_DEFINITIONS = [
     },
     {
         name: 'get_uticel',
-        description: 'Egy úticél teljes tartalmának lekérése ID alapján: cím, rövid leírás (tpu_leiras), bemutató szöveg (content), szülő, státusz, SEO-mezők.',
+        description: 'Egy úticél teljes tartalmának lekérése ID alapján: cím, rövid leírás (tpu_leiras), bemutató szöveg (content), szülő, státusz, SEO-mezők, valamint a gyakorlati infó mezők (tpu_szint, tpu_penznem, tpu_nyelv, tpu_idozona, tpu_beutazas, tpu_legjobb_idoszak, tpu_repuloter, tpu_repules_ido).',
         input_schema: {
             type: 'object',
             properties: {
@@ -79,14 +79,27 @@ const AGENT_TOOL_DEFINITIONS = [
                 id: { type: 'integer', description: 'uticel_update esetén a frissítendő úticél ID-ja' },
                 cim: { type: 'string', description: 'Cím (uticel_create és blog_draft esetén kötelező)' },
                 parent_id: { type: 'integer', description: 'uticel_create esetén a szülő úticél ID-ja (országnál hagyd el)' },
+                szint: {
+                    type: 'string',
+                    enum: ['orszag', 'regio', 'varos', 'egyeb'],
+                    description: 'uticel_* esetén az úticél szintje. Ettől függ, mely gyakorlati mezőket töltsd ki.',
+                },
+                // --- Gyakorlati infó mezők (uticel_* típusnál, szint szerint) ---
+                penznem:         { type: 'string', description: 'Pénznem (CSAK orszag szintnél), pl. "Euró (EUR)"' },
+                nyelv:           { type: 'string', description: 'Beszélt nyelv (CSAK orszag szintnél), pl. "olasz"' },
+                idozona:         { type: 'string', description: 'Időzóna (CSAK orszag szintnél), pl. "CET (UTC+1)"' },
+                beutazas:        { type: 'string', description: 'Be- és kiutazási tudnivaló (CSAK orszag szintnél), 1-2 mondat' },
+                legjobb_idoszak: { type: 'string', description: 'Legjobb utazási időszak (regio és varos szintnél), pl. "május–szeptember"' },
+                repuloter:       { type: 'string', description: 'Legközelebbi repülőtér (CSAK varos szintnél), pl. "Velence (VCE)"' },
+                repules_ido:     { type: 'string', description: 'Repülési idő Budapestről (CSAK varos szintnél), pl. "kb. 1 óra 20 perc"' },
                 kapcsolt_uticel_id: { type: 'integer', description: 'blog_draft esetén a cikkhez kapcsolódó úticél ID-ja (opcionális)' },
                 leiras: { type: 'string', description: 'Úticél rövid teaser-leírása, 1-2 mondat (uticel_* típusnál)' },
-                tartalom_html: { type: 'string', description: 'A fő szöveg HTML-ben (<p>, <h3>, <ul> tagekkel)' },
+                tartalom_html: { type: 'string', description: 'A fő szöveg HTML-ben (<p>, <h3>, <ul> tagekkel). uticel_create és blog_draft esetén kötelező; uticel_update-nél HAGYD EL, ha a szöveget nem módosítod (pl. csak a gyakorlati mezőket frissíted) – így a meglévő tartalom garantáltan változatlan marad.' },
                 seo_title: { type: 'string', description: 'SEO cím, max 60 karakter (opcionális)' },
                 seo_metadesc: { type: 'string', description: 'SEO meta-leírás, max 155 karakter (opcionális)' },
                 indoklas: { type: 'string', description: '1 mondat a szerkesztőnek: mit és miért javasolsz menteni' },
             },
-            required: ['tipus', 'tartalom_html', 'indoklas'],
+            required: ['tipus', 'indoklas'],
         },
     },
 ];
