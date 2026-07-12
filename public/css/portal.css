@@ -215,6 +215,8 @@ textarea.input-field { resize: vertical; min-height: 90px; }
     color: var(--text-muted); font-size: 24px; transition: all var(--transition);
 }
 .crud-gallery-add:hover { border-color: var(--gold); color: var(--gold); }
+.crud-gallery-item--valaszthato .crud-gallery-thumb { transition: outline var(--transition); outline: 2px solid transparent; outline-offset: 2px; }
+.crud-gallery-item--valaszthato:hover .crud-gallery-thumb { outline-color: var(--gold); }
 
 /* ---- Quill rich text szerkesztő – sötét téma illesztés ---- */
 .ql-toolbar.ql-snow {
@@ -228,6 +230,12 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 }
 .ql-editor { color: var(--text-primary); min-height: 160px; }
 .ql-editor.ql-blank::before { color: var(--text-muted); font-style: normal; }
+/* A szövegbe beszúrt kép-jelölő (tpu-inline-kep) a szerkesztőben – csak
+   előnézet, az éles oldalon a plugin sajátos, keretezett módon jeleníti meg. */
+.ql-editor img.tpu-inline-kep {
+    display: block; max-width: 320px; width: 100%; height: auto;
+    border-radius: var(--radius-sm); border: 1px solid var(--border); margin: 8px 0;
+}
 .ql-snow .ql-stroke { stroke: var(--text-secondary); }
 .ql-snow .ql-fill { fill: var(--text-secondary); }
 .ql-snow .ql-picker { color: var(--text-secondary); }

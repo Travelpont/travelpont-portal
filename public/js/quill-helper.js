@@ -4,6 +4,10 @@
 // oldal <head>-jébe kell betölteni (quill.snow.min.css + quill.min.js),
 // az aktivbalaton-portal esemenyek.html/helyszinek.html mintája szerint,
 // egyszerűsített eszköztárral (nincs kép/emoji-beszúrás, mert nincs médiatár).
+//
+// Az Úticélok oldal ezt a "kép a szövegbe" funkcióval bővíti (lásd
+// registerTpuKepBlot / insertTpuKep) – ez a Galéria-szekcióban már
+// feltöltött fotókra épít, NEM önálló feltöltési útvonal.
 // =====================================================
 
 // ---- Új Quill-szerkesztő létrehozása egy konténer div-ben ----
@@ -46,6 +50,51 @@ export function setupQuillEditor(containerId, hiddenInputId, initialHtml, placeh
     });
 
     return quill;
+}
+
+// ---- Egyedi Quill blot regisztrálása a szövegbe kézzel beillesztett képekhez ----
+// Az Úticélok plugin (travelpont-uticelok) a <img class="tpu-inline-kep" data-id="…">
+// jelölőt keresi a mentett HTML-ben és alakítja végleges, keretezett képpé –
+// ezt a jelölőt hozza létre ez a blot. Csak egyszer regisztráljuk (idempotens).
+let _tpuKepBlotRegistered = false;
+
+export function registerTpuKepBlot() {
+    if (_tpuKepBlotRegistered || typeof Quill === 'undefined') return;
+
+    const BlockEmbed = Quill.import('blots/block/embed');
+    class TpuKepBlot extends BlockEmbed {
+        static create(value) {
+            const node = super.create();
+            node.setAttribute('src', value.url);
+            node.setAttribute('data-id', value.id);
+            node.setAttribute('alt', value.felirat || '');
+            node.setAttribute('class', 'tpu-inline-kep');
+            return node;
+        }
+        static value(node) {
+            return {
+                id: node.getAttribute('data-id'),
+                url: node.getAttribute('src'),
+                felirat: node.getAttribute('alt') || '',
+            };
+        }
+    }
+    TpuKepBlot.blotName = 'tpuKep';
+    TpuKepBlot.tagName = 'img';
+
+    Quill.register(TpuKepBlot);
+    _tpuKepBlotRegistered = true;
+}
+
+// ---- Kép beszúrása a szerkesztő aktuális (vagy utoljára ismert) kurzorpozíciójába ----
+// range: a quill.getSelection() eredménye VAGY az utoljára ismert pozíció (a
+// szerkesztőn kívüli gombra kattintva a fókusz elveszik, ezért a hívó oldalon
+// egy 'selection-change' listenerrel érdemes cache-elni az utolsó pozíciót).
+export function insertTpuKep(quill, range, kep) {
+    if (!quill) return;
+    const index = range ? range.index : quill.getLength();
+    quill.insertEmbed(index, 'tpuKep', kep, 'user');
+    quill.setSelection(index + 1, 0, 'user');
 }
 
 // ---- AI-generált (vagy egyéb programozott) HTML beillesztése a szerkesztőbe ----
