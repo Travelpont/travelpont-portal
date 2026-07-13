@@ -27,7 +27,11 @@
 
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
-import { TpuKep, TpuKepSzoveg, TpuGaleriaSor, TpuFotomozaik } from './tpu-nodes.js';
+import {
+    TpuKep, TpuKepSzoveg, TpuGaleriaSor, TpuFotomozaik,
+    TpuKiemeles, TpuCta, TpuGyik, TpuVideo, TpuTerkepWidget,
+    TpuAjanlatWidget, TpuUticelWidget,
+} from './tpu-nodes.js';
 import { parseTartalom, leirasHtml, escapeHtml, escapeAttr } from './tpu-format.js';
 
 const SOR_MAX_KEP = 3;
@@ -42,10 +46,17 @@ const KEP_MERETEK = [
 // Az `ikon` a public/icons/szerkeszto/{ikon}.svg fájlra mutat (sziluettként,
 // CSS mask-kal színezve); amíg a fájl hiányzik, az emoji-tartalék látszik.
 const WIDGETEK = [
-    { cmd: 'kep', nev: 'Kép', rovid: 'Kép', emoji: '🖼️', ikon: 'kep' },
-    { cmd: 'kepszoveg', nev: 'Kép + szöveg', rovid: 'Kép+szöveg', emoji: '🖼️📝', ikon: 'kep-szoveg' },
-    { cmd: 'galeriasor', nev: 'Kép-sor', rovid: 'Kép-sor', emoji: '🖼️🖼️', ikon: 'kep-sor' },
-    { cmd: 'fotomozaik', nev: 'Fotó-mozaik', rovid: 'Mozaik', emoji: '📷', ikon: 'foto-mozaik' },
+    { csoport: 'Kép', cmd: 'kep', nev: 'Kép', rovid: 'Kép', emoji: '🖼️', ikon: 'kep' },
+    { csoport: 'Kép', cmd: 'kepszoveg', nev: 'Kép + szöveg', rovid: 'Kép+szöveg', emoji: '🖼️📝', ikon: 'kep-szoveg' },
+    { csoport: 'Kép', cmd: 'galeriasor', nev: 'Kép-sor', rovid: 'Kép-sor', emoji: '🖼️🖼️', ikon: 'kep-sor' },
+    { csoport: 'Kép', cmd: 'fotomozaik', nev: 'Fotó-mozaik', rovid: 'Mozaik', emoji: '📷', ikon: 'foto-mozaik' },
+    { csoport: 'Tartalom', cmd: 'kiemeles', nev: 'Kiemelés-doboz', rovid: 'Kiemelés', emoji: '💡', ikon: 'kiemeles' },
+    { csoport: 'Tartalom', cmd: 'cta', nev: 'CTA-gomb', rovid: 'CTA-gomb', emoji: '🔘', ikon: 'cta-gomb' },
+    { csoport: 'Tartalom', cmd: 'gyik', nev: 'GYIK-kérdés', rovid: 'GYIK', emoji: '❓', ikon: 'gyik' },
+    { csoport: 'Tartalom', cmd: 'video', nev: 'YouTube-videó', rovid: 'Videó', emoji: '▶️', ikon: 'video' },
+    { csoport: 'Tartalom', cmd: 'terkep', nev: 'Térkép', rovid: 'Térkép', emoji: '🗺️', ikon: 'terkep' },
+    { csoport: 'Tartalom', cmd: 'ajanlat', nev: 'Ajánlat-kártya', rovid: 'Ajánlat', emoji: '🎫', ikon: 'ajanlat' },
+    { csoport: 'Tartalom', cmd: 'uticel', nev: 'Úticél-ajánló', rovid: 'Úticél', emoji: '🧭', ikon: 'uticel-ajanlo' },
 ];
 const WIDGET = Object.fromEntries(WIDGETEK.map(w => [w.cmd, w]));
 
@@ -90,9 +101,11 @@ function normalizal(html) {
  * @param {Function} [opts.onUres]        Visszajelzés, ha üres galériából próbálnának képet szúrni.
  * @param {Function} [opts.onChange]      Minden felhasználói módosításkor hívódik (dirty-követéshez).
  * @param {Function} [opts.onUzenet]      Rövid tájékoztató üzenet a felhasználónak (pl. toast).
+ * @param {Function} [opts.ajanlatProvider] async () => [{id, cim, kep}] – Ajánlatok a kártya-választóhoz.
+ * @param {Function} [opts.uticelProvider]  async () => [{id, cim, kep}] – Úticélek az ajánló-választóhoz.
  * @returns {{getHtml, setHtml, cserelSzoveg, refreshGaleria, destroy}}
  */
-export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvider, onUres, onChange, onUzenet }) {
+export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvider, onUres, onChange, onUzenet, ajanlatProvider, uticelProvider }) {
     const container = document.getElementById(containerId);
     if (!container) return null;
 
@@ -110,12 +123,13 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         <div class="vaszon">
             <div class="vaszon-paletta">
                 <div class="vaszon-paletta-belso">
-                    <div class="vaszon-paletta-cim">Widget</div>
-                    ${WIDGETEK.map(w => `
-                        <button type="button" class="vaszon-paletta-gomb" data-cmd="${w.cmd}" title="${w.nev} beszúrása a kurzorhoz">
-                            ${ikonHtml(w)}
-                            <span class="vaszon-paletta-felirat">${w.rovid}</span>
-                        </button>`).join('')}
+                    ${['Kép', 'Tartalom'].map(csoport => `
+                        <div class="vaszon-paletta-cim">${csoport}</div>
+                        ${WIDGETEK.filter(w => w.csoport === csoport).map(w => `
+                            <button type="button" class="vaszon-paletta-gomb" data-cmd="${w.cmd}" title="${w.nev} beszúrása a kurzorhoz">
+                                ${ikonHtml(w)}
+                                <span class="vaszon-paletta-felirat">${w.rovid}</span>
+                            </button>`).join('')}`).join('')}
                 </div>
             </div>
             <div class="vaszon-fo">
@@ -373,6 +387,309 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         };
     }
 
+    // 💡 Kiemelés-doboz node view-ja (a tartalom a widgeten belül szerkeszthető).
+    function kiemelesNezet({ node, editor, getPos }) {
+        const dom = document.createElement('div');
+        dom.className = 'vaszon-widget vaszon-widget--kiemeles';
+        const fejlec = document.createElement('div');
+        fejlec.className = 'vaszon-widget-fejlec';
+        const torzs = document.createElement('div');
+        torzs.className = 'vaszon-kiemeles-torzs';
+        dom.append(fejlec, torzs);
+
+        let aktNode = node;
+        function rajzol() {
+            fejlec.innerHTML = widgetFejlecHtml(WIDGET.kiemeles, `
+                <select class="vaszon-select" title="A doboz típusa">
+                    <option value="jotudni" ${aktNode.attrs.variant !== 'tipp' && aktNode.attrs.variant !== 'figyelem' ? 'selected' : ''}>ℹ️ Jó tudni</option>
+                    <option value="tipp" ${aktNode.attrs.variant === 'tipp' ? 'selected' : ''}>💡 Tipp</option>
+                    <option value="figyelem" ${aktNode.attrs.variant === 'figyelem' ? 'selected' : ''}>⚠️ Figyelem</option>
+                </select>`);
+            fejlec.querySelector('.vaszon-select').addEventListener('change', e => attrCsere(editor, getPos, { variant: e.target.value }));
+            kossFejlecGombok(fejlec, editor, getPos);
+            torzs.className = 'vaszon-kiemeles-torzs vaszon-kiemeles-torzs--' + (aktNode.attrs.variant || 'jotudni');
+            alkalmazIkonok(fejlec);
+        }
+        rajzol();
+
+        return {
+            dom,
+            contentDOM: torzs,
+            update(n) {
+                if (n.type.name !== 'tpuKiemeles') return false;
+                aktNode = n;
+                rajzol();
+                return true;
+            },
+        };
+    }
+
+    // 🔘 CTA-gomb node view-ja: felirat + link szerkesztése, élő gomb-előnézettel.
+    function ctaNezet({ node, editor, getPos }) {
+        const dom = document.createElement('div');
+        dom.className = 'vaszon-widget vaszon-widget--cta';
+        dom.innerHTML = `
+            <div class="vaszon-widget-fejlec"></div>
+            <div class="vaszon-cta-szerk">
+                <label class="vaszon-mezo">Gomb felirata
+                    <input class="input-field" data-mezo="felirat" placeholder="pl. Nézd meg az ajánlatokat">
+                </label>
+                <label class="vaszon-mezo">Link (https://…)
+                    <input class="input-field" data-mezo="url" placeholder="https://…">
+                </label>
+                <div class="vaszon-cta-elonezet"><span class="vaszon-cta-minta"></span></div>
+                <div class="input-hint">Külső (pl. affiliate) linknél élesben automatikusan új fülön nyílik, sponsored jelöléssel.</div>
+            </div>`;
+        const fejlec = dom.querySelector('.vaszon-widget-fejlec');
+        const feliratInput = dom.querySelector('[data-mezo="felirat"]');
+        const urlInput = dom.querySelector('[data-mezo="url"]');
+        const minta = dom.querySelector('.vaszon-cta-minta');
+
+        // Gépelés közben csak az előnézet frissül; az attribútum a mezőből
+        // kilépve (change) íródik, hogy a fókusz ne ugorjon el.
+        feliratInput.addEventListener('input', () => { minta.textContent = feliratInput.value || 'CTA-gomb'; });
+        feliratInput.addEventListener('change', () => attrCsere(editor, getPos, { felirat: feliratInput.value.trim() }));
+        urlInput.addEventListener('change', () => attrCsere(editor, getPos, { url: urlInput.value.trim() }));
+
+        let aktNode = node;
+        function rajzol() {
+            fejlec.innerHTML = widgetFejlecHtml(WIDGET.cta);
+            kossFejlecGombok(fejlec, editor, getPos);
+            alkalmazIkonok(fejlec);
+            if (document.activeElement !== feliratInput) feliratInput.value = aktNode.attrs.felirat || '';
+            if (document.activeElement !== urlInput) urlInput.value = aktNode.attrs.url || '';
+            minta.textContent = aktNode.attrs.felirat || 'CTA-gomb';
+        }
+        rajzol();
+
+        return {
+            dom,
+            update(n) {
+                if (n.type.name !== 'tpuCta') return false;
+                aktNode = n;
+                rajzol();
+                return true;
+            },
+        };
+    }
+
+    // ❓ GYIK node view-ja: kérdés-mező + a widgeten belül szerkeszthető válasz.
+    function gyikNezet({ node, editor, getPos }) {
+        const dom = document.createElement('div');
+        dom.className = 'vaszon-widget vaszon-widget--gyik';
+        const fejlec = document.createElement('div');
+        fejlec.className = 'vaszon-widget-fejlec';
+        const kerdesSor = document.createElement('div');
+        kerdesSor.className = 'vaszon-gyik-kerdes';
+        kerdesSor.innerHTML = '<input class="input-field" placeholder="A kérdés (pl. Kell-e vízum?)">';
+        kerdesSor.contentEditable = 'false';
+        const torzs = document.createElement('div');
+        torzs.className = 'vaszon-gyik-valasz';
+        dom.append(fejlec, kerdesSor, torzs);
+
+        const kerdesInput = kerdesSor.querySelector('input');
+        kerdesInput.addEventListener('change', () => attrCsere(editor, getPos, { kerdes: kerdesInput.value.trim() }));
+
+        let aktNode = node;
+        function rajzol() {
+            fejlec.innerHTML = widgetFejlecHtml(WIDGET.gyik);
+            kossFejlecGombok(fejlec, editor, getPos);
+            alkalmazIkonok(fejlec);
+            if (document.activeElement !== kerdesInput) kerdesInput.value = aktNode.attrs.kerdes || '';
+        }
+        rajzol();
+
+        return {
+            dom,
+            contentDOM: torzs,
+            update(n) {
+                if (n.type.name !== 'tpuGyik') return false;
+                aktNode = n;
+                rajzol();
+                return true;
+            },
+        };
+    }
+
+    // Bármilyen YouTube-linkből (watch/shorts/embed/youtu.be) videó-ID.
+    function kinyerYoutubeId(s) {
+        s = (s || '').trim();
+        if (/^[A-Za-z0-9_-]{6,15}$/.test(s)) return s;
+        const m = s.match(/(?:youtube\.com\/(?:watch\?[^#\s]*v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,15})/i);
+        return m ? m[1] : '';
+    }
+
+    // ▶️ YouTube-videó node view-ja.
+    function videoNezet({ node, editor, getPos }) {
+        const dom = document.createElement('div');
+        dom.className = 'vaszon-widget vaszon-widget--video';
+        let aktNode = node;
+
+        function rajzol() {
+            const id = aktNode.attrs.youtube || '';
+            dom.innerHTML = `
+                <div class="vaszon-widget-fejlec">${widgetFejlecHtml(WIDGET.video)}</div>
+                <div class="vaszon-video-szerk">
+                    <label class="vaszon-mezo">YouTube-link vagy videó-azonosító
+                        <input class="input-field" placeholder="https://www.youtube.com/watch?v=…">
+                    </label>
+                    ${id
+                        ? `<div class="vaszon-video-elonezet"><img src="https://i.ytimg.com/vi/${escapeAttr(id)}/hqdefault.jpg" alt=""><span class="vaszon-video-play">▶</span></div>`
+                        : '<div class="input-hint">Illeszd be a videó linkjét — élesben kattintásra induló, gyors beágyazás lesz belőle.</div>'}
+                </div>`;
+            const input = dom.querySelector('input');
+            input.value = id;
+            input.addEventListener('change', () => {
+                const uj = kinyerYoutubeId(input.value);
+                if (!uj && input.value.trim() !== '') {
+                    if (onUzenet) onUzenet('Ez nem tűnik YouTube-linknek — másold a videó teljes URL-jét.');
+                    return;
+                }
+                attrCsere(editor, getPos, { youtube: uj });
+            });
+            kossFejlecGombok(dom.querySelector('.vaszon-widget-fejlec'), editor, getPos);
+            alkalmazIkonok(dom);
+        }
+        rajzol();
+
+        return {
+            dom,
+            update(n) {
+                if (n.type.name !== 'tpuVideo') return false;
+                aktNode = n;
+                rajzol();
+                return true;
+            },
+        };
+    }
+
+    // 🗺️ Térkép node view-ja (csak Google Maps beágyazási URL).
+    const TERKEP_PREFIX = 'https://www.google.com/maps/embed';
+    function terkepNezet({ node, editor, getPos }) {
+        const dom = document.createElement('div');
+        dom.className = 'vaszon-widget vaszon-widget--terkep';
+        let aktNode = node;
+
+        function rajzol() {
+            const src = aktNode.attrs.src || '';
+            const ervenyes = src.indexOf(TERKEP_PREFIX) === 0;
+            dom.innerHTML = `
+                <div class="vaszon-widget-fejlec">${widgetFejlecHtml(WIDGET.terkep)}</div>
+                <div class="vaszon-video-szerk">
+                    <label class="vaszon-mezo">Google Maps beágyazási URL
+                        <input class="input-field" placeholder="${TERKEP_PREFIX}?pb=…">
+                    </label>
+                    ${ervenyes
+                        ? `<iframe class="vaszon-terkep-elonezet" src="${escapeAttr(src)}" loading="lazy"></iframe>`
+                        : '<div class="input-hint">Google Maps → Megosztás → Térkép beágyazása → a HTML „src” értékét másold ide. Csak a https://www.google.com/maps/embed… kezdetű URL működik.</div>'}
+                </div>`;
+            const input = dom.querySelector('input');
+            input.value = src;
+            input.addEventListener('change', () => {
+                const uj = input.value.trim();
+                if (uj !== '' && uj.indexOf(TERKEP_PREFIX) !== 0) {
+                    if (onUzenet) onUzenet('Csak Google Maps beágyazási URL használható (https://www.google.com/maps/embed…).');
+                    return;
+                }
+                attrCsere(editor, getPos, { src: uj });
+            });
+            kossFejlecGombok(dom.querySelector('.vaszon-widget-fejlec'), editor, getPos);
+            alkalmazIkonok(dom);
+        }
+        rajzol();
+
+        return {
+            dom,
+            update(n) {
+                if (n.type.name !== 'tpuTerkepWidget') return false;
+                aktNode = n;
+                rajzol();
+                return true;
+            },
+        };
+    }
+
+    // 🎫 / 🧭 Beszúrt kártya node view (közös az ajánlatnak és az úticélnak).
+    function kartyaNezet(widgetDef, nodeName, provider, megjegyzes) {
+        return ({ node, editor, getPos }) => {
+            const dom = document.createElement('div');
+            dom.className = 'vaszon-widget vaszon-widget--kartya';
+            let aktNode = node;
+
+            function rajzol() {
+                dom.innerHTML = `
+                    <div class="vaszon-widget-fejlec">${widgetFejlecHtml(widgetDef, `
+                        <button type="button" class="vaszon-gomb vaszon-kartya-csere">Csere</button>`)}
+                    </div>
+                    <div class="vaszon-kartya-torzs">
+                        ${ikonHtml(widgetDef)}
+                        <div>
+                            <div class="vaszon-kartya-cim">${escapeHtml(aktNode.attrs.cim || `#${aktNode.attrs.id}`)}</div>
+                            <div class="input-hint">Élesben teljes kártyaként jelenik meg. ${megjegyzes}</div>
+                        </div>
+                    </div>`;
+                kossFejlecGombok(dom.querySelector('.vaszon-widget-fejlec'), editor, getPos);
+                dom.querySelector('.vaszon-kartya-csere').addEventListener('click', () => {
+                    valasszElem(widgetDef.nev, provider, elem => attrCsere(editor, getPos, { id: String(elem.id), cim: elem.cim }));
+                });
+                alkalmazIkonok(dom);
+            }
+            rajzol();
+
+            return {
+                dom,
+                update(n) {
+                    if (n.type.name !== nodeName) return false;
+                    aktNode = n;
+                    rajzol();
+                    return true;
+                },
+            };
+        };
+    }
+
+    // ---- Általános elem-választó modal (ajánlat / úticél listákhoz) ----
+    async function valasszElem(cim, provider, kivalaszt) {
+        if (!provider) return;
+        let lista;
+        try {
+            lista = await provider();
+        } catch (e) {
+            if (onUzenet) onUzenet('A lista betöltése nem sikerült: ' + e.message);
+            return;
+        }
+        if (!lista || !lista.length) {
+            if (onUzenet) onUzenet('Nincs választható elem.');
+            return;
+        }
+        zarKepValaszto();
+        const overlay = document.createElement('div');
+        overlay.className = 'vaszon-kepvalaszto-overlay';
+        overlay.innerHTML = `
+            <div class="vaszon-kepvalaszto">
+                <div class="vaszon-kepvalaszto-fejlec">
+                    <span>${escapeHtml(cim)} — kattints a beszúrandóra</span>
+                    <button type="button" class="vaszon-gomb" data-mit="megse">Mégse</button>
+                </div>
+                <div class="vaszon-lista">
+                    ${lista.map(e => `
+                        <div class="vaszon-lista-elem" data-id="${escapeAttr(e.id)}">
+                            ${e.kep ? `<img src="${escapeAttr(e.kep)}">` : '<div class="vaszon-lista-kep-ures"></div>'}
+                            <span>${escapeHtml(e.cim)}</span>
+                        </div>`).join('')}
+                </div>
+            </div>`;
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay || e.target.closest('[data-mit="megse"]')) { zarKepValaszto(); return; }
+            const sor = e.target.closest('.vaszon-lista-elem');
+            if (!sor) return;
+            const elem = lista.find(x => String(x.id) === sor.dataset.id);
+            zarKepValaszto();
+            if (elem) kivalaszt(elem);
+        });
+        document.body.appendChild(overlay);
+    }
+
     // ---- Szerkesztő létrehozása ----
     const editor = new Editor({
         element: lapEl,
@@ -388,6 +705,13 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
             TpuKepSzoveg.extend({ addNodeView() { return kepSzovegNezet; } }),
             TpuGaleriaSor.extend({ addNodeView() { return galeriaSorNezet; } }),
             TpuFotomozaik.extend({ addNodeView() { return fotomozaikNezet; } }),
+            TpuKiemeles.extend({ addNodeView() { return kiemelesNezet; } }),
+            TpuCta.extend({ addNodeView() { return ctaNezet; } }),
+            TpuGyik.extend({ addNodeView() { return gyikNezet; } }),
+            TpuVideo.extend({ addNodeView() { return videoNezet; } }),
+            TpuTerkepWidget.extend({ addNodeView() { return terkepNezet; } }),
+            TpuAjanlatWidget.extend({ addNodeView() { return kartyaNezet(WIDGET.ajanlat, 'tpuAjanlatWidget', ajanlatProvider, 'Ha az ajánlatot visszavonod/lejár, magától eltűnik.'); } }),
+            TpuUticelWidget.extend({ addNodeView() { return kartyaNezet(WIDGET.uticel, 'tpuUticelWidget', uticelProvider, 'Fotó-csempe + cím, a saját oldalára linkelve.'); } }),
         ],
         content: initialHtml || '',
         onUpdate: () => { if (onChange) onChange(); },
@@ -472,6 +796,48 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
                 editor.chain().focus().insertContent({ type: 'tpuFotomozaik' }).run();
                 break;
             }
+            case 'kiemeles':
+                editor.chain().focus().insertContent({
+                    type: 'tpuKiemeles',
+                    attrs: { variant: 'jotudni' },
+                    content: [{ type: 'paragraph' }],
+                }).run();
+                break;
+            case 'cta':
+                editor.chain().focus().insertContent({
+                    type: 'tpuCta',
+                    attrs: { felirat: 'Nézd meg az ajánlatokat', url: '' },
+                }).run();
+                break;
+            case 'gyik':
+                editor.chain().focus().insertContent({
+                    type: 'tpuGyik',
+                    attrs: { kerdes: '' },
+                    content: [{ type: 'paragraph' }],
+                }).run();
+                break;
+            case 'video':
+                editor.chain().focus().insertContent({ type: 'tpuVideo', attrs: { youtube: '' } }).run();
+                break;
+            case 'terkep':
+                editor.chain().focus().insertContent({ type: 'tpuTerkepWidget', attrs: { src: '' } }).run();
+                break;
+            case 'ajanlat':
+                valasszElem('Ajánlat-kártya', ajanlatProvider, elem => {
+                    editor.chain().focus().insertContent({
+                        type: 'tpuAjanlatWidget',
+                        attrs: { id: String(elem.id), cim: elem.cim },
+                    }).run();
+                });
+                break;
+            case 'uticel':
+                valasszElem('Úticél-ajánló', uticelProvider, elem => {
+                    editor.chain().focus().insertContent({
+                        type: 'tpuUticelWidget',
+                        attrs: { id: String(elem.id), cim: elem.cim },
+                    }).run();
+                });
+                break;
             case 'undo': lanc.undo().run(); break;
             case 'redo': lanc.redo().run(); break;
         }
@@ -576,9 +942,13 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
 
         // AI-tól érkező szöveg: a szöveges részt cseréli, a widgeteket a
         // tartalom végére megtartja.
+        // Megjegyzés: a szöveges JELLEGŰ widgetek (kiemelés, GYIK) is cserélődnek,
+        // mert az AI maga is írhat ilyeneket — csak a kép-alapú és szerver-adatos
+        // widgetek (kép, kép-sor, mozaik, CTA, videó, térkép, kártyák) maradnak meg.
         cserelSzoveg: html => {
+            const SZOVEGES = ['szoveg', 'kiemeles', 'gyik'];
             const widgetHtml = parseTartalom(editor.getHTML())
-                .filter(l => l.tipus !== 'szoveg')
+                .filter(l => !SZOVEGES.includes(l.tipus))
                 .map(leirasHtml)
                 .join('');
             editor.commands.setContent((html || '') + widgetHtml);

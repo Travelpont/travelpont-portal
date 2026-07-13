@@ -5,12 +5,19 @@ widget-ikonjai, SVG formátumban (pl. az svgrepo.com-ról letöltve).
 
 ## Fájlnevek (pontosan így!)
 
-| Fájlnév          | Widget        | Mit ábrázoljon (javaslat)                    |
-|------------------|---------------|----------------------------------------------|
-| `kep.svg`        | Kép           | egyetlen kép/fotó keretben                   |
-| `kep-szoveg.svg` | Kép + szöveg  | kép és mellette szövegsorok                  |
-| `kep-sor.svg`    | Kép-sor       | 2-3 kép egymás mellett                       |
-| `foto-mozaik.svg`| Fotó-mozaik   | képrács / galéria (4-6 kis csempe)           |
+| Fájlnév            | Widget         | Mit ábrázoljon (javaslat)                  |
+|--------------------|----------------|--------------------------------------------|
+| `kep.svg`          | Kép            | egyetlen kép/fotó keretben                 |
+| `kep-szoveg.svg`   | Kép + szöveg   | kép és mellette szövegsorok                |
+| `kep-sor.svg`      | Kép-sor        | 2-3 kép egymás mellett                     |
+| `foto-mozaik.svg`  | Fotó-mozaik    | képrács / galéria (4-6 kis csempe)         |
+| `kiemeles.svg`     | Kiemelés-doboz | villanykörte vagy info-buborék             |
+| `cta-gomb.svg`     | CTA-gomb       | gomb / kurzor-kattintás                    |
+| `gyik.svg`         | GYIK           | kérdőjel (buborékban)                      |
+| `video.svg`        | YouTube-videó  | lejátszás-gomb / filmkocka                 |
+| `terkep.svg`       | Térkép         | térkép / helyjelző tű                      |
+| `ajanlat.svg`      | Ajánlat-kártya | jegy / árcédula / repülő                   |
+| `uticel-ajanlo.svg`| Úticél-ajánló  | iránytű / útjelző tábla                    |
 
 ## Fontos tudnivalók
 

@@ -247,6 +247,20 @@
             }
         }
 
+        // ---- Widget-választók adatforrásai (Ajánlat-kártya / Úticél-ajánló) ----
+        let ajanlatListaCache = null;
+        async function ajanlatProvider() {
+            if (!ajanlatListaCache) {
+                const data = await apiCall(API_CONFIG.AJANLAT_PROXY_URL, { action: 'list', extraQuery: { status: 'publish', per_page: 200 } });
+                ajanlatListaCache = (data.items || []).map(it => ({ id: it.id, cim: it.title || '(cím nélkül)', kep: it.thumbnail_url || '' }));
+            }
+            return ajanlatListaCache;
+        }
+        async function uticelProvider() {
+            // A már betöltött meta-lista; önmagát nem ajánlhatja.
+            return metaFlat.filter(m => m.id !== activeId).map(m => ({ id: m.id, cim: m.title || '(cím nélkül)', kep: '' }));
+        }
+
         document.getElementById('newBtn').addEventListener('click', () => selectItem(null));
         document.getElementById('searchInput').addEventListener('input', debounce(() => loadAll(), 350));
 
@@ -460,6 +474,8 @@
                     onUres: () => toast('Előbb tölts fel képeket a Galéria részben, utána illesztheted őket a szövegbe.', 'info'),
                     onChange: jeloljModositast,
                     onUzenet: uzenet => toast(uzenet, 'info'),
+                    ajanlatProvider,
+                    uticelProvider,
                 })
                 : fallbackSzerkeszto('blokkSzerkeszto', item.content, jeloljModositast);
 

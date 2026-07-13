@@ -73,6 +73,33 @@ const GALERIASOR_RE = /<div[^>]*class="[^"]*tpu-galeria-sor[^"]*"[^>]*>([\s\S]*?
 // fel nem használt galéria-képek rácsát (üres div, tartalmát a WP adja).
 const FOTOMOZAIK_RE = /<div[^>]*class="[^"]*tpu-fotomozaik[^"]*"[^>]*>\s*<\/div>/gi;
 
+// Tartalmi widgetek. A kiemelés-doboz és a GYIK-válasz belseje ugyanarra a
+// szűkített készletre korlátozott, mint a kép+szöveg torzs (nincs benne div),
+// ezért a lusta lezárás biztonságos.
+const KIEMELES_RE = /<div[^>]*class="[^"]*tpu-kiemeles[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+const CTA_RE = /<a[^>]*\btpu-cta\b[^>]*>([\s\S]*?)<\/a>/gi;
+const GYIK_RE = /<details[^>]*class="[^"]*tpu-gyik[^"]*"[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>\s*<div[^>]*class="[^"]*tpu-gyik-valasz[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/details>/gi;
+
+// Szerver-adatos helyjelzők (üres div, a tartalmát a WP tölti ki). Ezeket
+// kizárólag a mi szerializálónk írja, ezért az osztály-érték pontosan
+// illeszthető (nincs osztály-változat).
+const VIDEO_RE = /<div[^>]*class="tpu-video"[^>]*>\s*<\/div>/gi;
+const TERKEPW_RE = /<div[^>]*class="tpu-terkep-widget"[^>]*>\s*<\/div>/gi;
+const AJANLATW_RE = /<div[^>]*class="tpu-ajanlat-widget"[^>]*>\s*<\/div>/gi;
+const UTICELW_RE = /<div[^>]*class="tpu-uticel-widget"[^>]*>\s*<\/div>/gi;
+
+const KIEMELES_VARIANSOK = ['jotudni', 'tipp', 'figyelem'];
+const TERKEP_PREFIX = 'https://www.google.com/maps/embed';
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{6,15}$/;
+
+// Sima szöveg kinyerése egy HTML-darabból (summary/CTA-felirat parse-hoz).
+function szovegtelenit(html) {
+    return (html || '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+        .trim();
+}
+
 function talal(re, s, poz) {
     re.lastIndex = poz;
     return re.exec(s);
@@ -106,6 +133,13 @@ export function parseTartalom(html) {
             ['kepszoveg', talal(KEPSZOVEG_RE, nyers, poz)],
             ['galeriasor', talal(GALERIASOR_RE, nyers, poz)],
             ['fotomozaik', talal(FOTOMOZAIK_RE, nyers, poz)],
+            ['kiemeles', talal(KIEMELES_RE, nyers, poz)],
+            ['cta', talal(CTA_RE, nyers, poz)],
+            ['gyik', talal(GYIK_RE, nyers, poz)],
+            ['video', talal(VIDEO_RE, nyers, poz)],
+            ['terkepw', talal(TERKEPW_RE, nyers, poz)],
+            ['ajanlatw', talal(AJANLATW_RE, nyers, poz)],
+            ['uticelw', talal(UTICELW_RE, nyers, poz)],
             ['kep', talal(markerRe(), nyers, poz)],
         ].filter(t => t[1]);
         if (!talalatok.length) break;
@@ -117,10 +151,28 @@ export function parseTartalom(html) {
 
         pushSzoveg(lista, nyers.slice(poz, m.index));
 
+        const nyitoTag = m[0].slice(0, m[0].indexOf('>') + 1);
+
         if (tipus === 'kep') {
             lista.push({ tipus: 'kep', kep: kepAdat(m[0]) });
         } else if (tipus === 'fotomozaik') {
             lista.push({ tipus: 'fotomozaik' });
+        } else if (tipus === 'kiemeles') {
+            const vm = nyitoTag.match(/tpu-kiemeles--(jotudni|tipp|figyelem)/i);
+            lista.push({ tipus: 'kiemeles', variant: vm ? vm[1].toLowerCase() : 'jotudni', html: m[1].trim() });
+        } else if (tipus === 'cta') {
+            lista.push({ tipus: 'cta', felirat: szovegtelenit(m[1]), url: markerAttr(nyitoTag, 'href').replace(/&amp;/g, '&') });
+        } else if (tipus === 'gyik') {
+            lista.push({ tipus: 'gyik', kerdes: szovegtelenit(m[1]), html: m[2].trim() });
+        } else if (tipus === 'video') {
+            lista.push({ tipus: 'video', youtube: markerAttr(nyitoTag, 'data-youtube') });
+        } else if (tipus === 'terkepw') {
+            // Az attribútum escapelve tárolódik (& → &amp;) — visszafejtjük.
+            lista.push({ tipus: 'terkepw', src: markerAttr(nyitoTag, 'data-src').replace(/&amp;/g, '&') });
+        } else if (tipus === 'ajanlatw') {
+            lista.push({ tipus: 'ajanlatw', id: markerAttr(nyitoTag, 'data-id'), cim: szovegtelenit(markerAttr(nyitoTag, 'data-cim')) });
+        } else if (tipus === 'uticelw') {
+            lista.push({ tipus: 'uticelw', id: markerAttr(nyitoTag, 'data-id'), cim: szovegtelenit(markerAttr(nyitoTag, 'data-cim')) });
         } else if (tipus === 'galeriasor') {
             const kepek = (m[1].match(markerRe()) || []).map(kepAdat);
             if (kepek.length) lista.push({ tipus: 'galeriasor', kepek });
@@ -156,6 +208,37 @@ export function leirasHtml(l) {
             return markerHtml(l.kep);
         case 'fotomozaik':
             return '<div class="tpu-fotomozaik"></div>';
+        case 'kiemeles': {
+            if (uresSzoveg(l.html)) return '';
+            const v = KIEMELES_VARIANSOK.includes(l.variant) ? l.variant : 'jotudni';
+            return `<div class="tpu-kiemeles tpu-kiemeles--${v}">${l.html}</div>`;
+        }
+        case 'cta': {
+            const felirat = (l.felirat || '').trim();
+            if (!felirat) return '';
+            return `<a class="tpu-cta" href="${escapeAttr(l.url || '')}">${escapeHtml(felirat)}</a>`;
+        }
+        case 'gyik': {
+            const kerdes = (l.kerdes || '').trim();
+            if (!kerdes) return '';
+            return `<details class="tpu-gyik"><summary>${escapeHtml(kerdes)}</summary><div class="tpu-gyik-valasz">${uresSzoveg(l.html) ? '' : l.html}</div></details>`;
+        }
+        case 'video':
+            return YOUTUBE_ID_RE.test(l.youtube || '')
+                ? `<div class="tpu-video" data-youtube="${l.youtube}"></div>`
+                : '';
+        case 'terkepw':
+            return (l.src || '').indexOf(TERKEP_PREFIX) === 0
+                ? `<div class="tpu-terkep-widget" data-src="${escapeAttr(l.src)}"></div>`
+                : '';
+        case 'ajanlatw':
+            return /^\d+$/.test(String(l.id || ''))
+                ? `<div class="tpu-ajanlat-widget" data-id="${l.id}" data-cim="${escapeAttr(l.cim || '')}"></div>`
+                : '';
+        case 'uticelw':
+            return /^\d+$/.test(String(l.id || ''))
+                ? `<div class="tpu-uticel-widget" data-id="${l.id}" data-cim="${escapeAttr(l.cim || '')}"></div>`
+                : '';
         case 'galeriasor':
             return (l.kepek && l.kepek.length)
                 ? `<div class="tpu-galeria-sor">${l.kepek.map(markerHtml).join('')}</div>`

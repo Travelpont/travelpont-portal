@@ -59,6 +59,34 @@ export function showElonezet({ title, leiras, contentHtml, galeria }) {
         return mozaikHtml;
     });
 
+    // ---- Tartalmi widgetek közelítő megjelenítése ----
+    // Kiemelés-doboz és CTA-gomb: a tárolt markup marad, a stílust a
+    // .tpu-elonezet CSS adja. GYIK: nyitva mutatjuk, hogy a válasz is látsszon.
+    tartalom = tartalom.replace(/<details class="tpu-gyik">/gi, '<details class="tpu-gyik" open>');
+
+    // Videó: bélyegkép + play (élesben kattintásra töltő beágyazás).
+    tartalom = tartalom.replace(/<div[^>]*class="tpu-video"[^>]*>\s*<\/div>/gi, tag => {
+        const id = markerAttr(tag, 'data-youtube');
+        if (!/^[A-Za-z0-9_-]{6,15}$/.test(id)) return '';
+        return `<div class="tpu-elonezet-video"><img src="https://i.ytimg.com/vi/${escapeAttr(id)}/hqdefault.jpg" alt=""><span>▶</span></div>`;
+    });
+
+    // Térkép: élő iframe (ugyanaz a beágyazás, mint élesben).
+    tartalom = tartalom.replace(/<div[^>]*class="tpu-terkep-widget"[^>]*>\s*<\/div>/gi, tag => {
+        const src = markerAttr(tag, 'data-src').replace(/&amp;/g, '&');
+        if (src.indexOf('https://www.google.com/maps/embed') !== 0) return '';
+        return `<iframe class="tpu-elonezet-terkep" src="${escapeAttr(src)}" loading="lazy"></iframe>`;
+    });
+
+    // Beszúrt kártyák: a teljes kártyához szerver-adat kell — címkés
+    // helyettesítőt mutatunk.
+    const kartyaChip = (tag, cimke) => {
+        const cim = markerAttr(tag, 'data-cim') || ('#' + markerAttr(tag, 'data-id'));
+        return `<div class="tpu-elonezet-chip">${cimke}: <strong>${escapeHtml(cim)}</strong> — élesben teljes kártyaként jelenik meg</div>`;
+    };
+    tartalom = tartalom.replace(/<div[^>]*class="tpu-ajanlat-widget"[^>]*>\s*<\/div>/gi, tag => kartyaChip(tag, '🎫 Beszúrt ajánlat'));
+    tartalom = tartalom.replace(/<div[^>]*class="tpu-uticel-widget"[^>]*>\s*<\/div>/gi, tag => kartyaChip(tag, '🧭 Úticél-ajánló'));
+
     const overlay = document.createElement('div');
     overlay.className = 'elonezet-overlay';
     overlay.innerHTML = `
