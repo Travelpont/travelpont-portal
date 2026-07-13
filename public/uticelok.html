@@ -44,6 +44,8 @@
         import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
         import { generateWithAI, generateSeoSuggestion } from './js/ai-helper.js';
         import { createBlokkSzerkeszto } from './js/blokk-szerkeszto.js';
+        import { showElonezet } from './js/elonezet.js';
+        import { escapeHtml, escapeAttr } from './js/tpu-format.js';
         import { attachCharCounter } from './js/char-counter.js';
 
         const PROXY = API_CONFIG.UTICEL_PROXY_URL;
@@ -53,6 +55,106 @@
         let activeId = null;
         let contentBlokkok = null; // a "Bemutató szöveg" blokk-szerkesztő aktuális példánya
         let currentItem = null;   // a szerkesztőben épp megnyitott úticél (galéria-frissítéshez kell)
+        let dirty = false;        // van-e mentetlen módosítás a szerkesztőben
+
+        // ---- Mentetlen módosítás követése + helyi vázlat-mentés ----
+        // Minden mezőváltozás (input/change felbuborékol az editorPanel-ig) és
+        // minden blokk-művelet (onChange) ide fut be; a vázlat 2 mp gépelési
+        // szünet után mentődik a böngésző localStorage-ába.
+        const VAZLAT_ELOTAG = 'tp_uticel_vazlat_';
+        let vazlatTimer = null;
+
+        function vazlatKulcs() { return VAZLAT_ELOTAG + (activeId || 'uj'); }
+
+        function jeloljModositast() {
+            if (!dirty) { dirty = true; frissitMentesGomb(); }
+            clearTimeout(vazlatTimer);
+            vazlatTimer = setTimeout(vazlatMentes, 2000);
+        }
+
+        function frissitMentesGomb() {
+            const btn = document.getElementById('saveBtn');
+            if (btn && !btn.disabled) btn.textContent = dirty ? '💾 Mentés (van mentetlen módosítás)' : '💾 Mentés';
+        }
+
+        function getContentHtml() {
+            return contentBlokkok ? contentBlokkok.getHtml() : '';
+        }
+
+        function formSnapshot() {
+            const ertek = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+            return {
+                title: ertek('f_title'), status: ertek('f_status'), parent: ertek('f_parent'),
+                leiras: ertek('f_leiras'), content: getContentHtml(), szint: ertek('f_szint'),
+                penznem: ertek('f_penznem'), nyelv: ertek('f_nyelv'), idozona: ertek('f_idozona'),
+                beutazas: ertek('f_beutazas'), legjobb_idoszak: ertek('f_legjobb_idoszak'),
+                repuloter: ertek('f_repuloter'), repules_ido: ertek('f_repules_ido'),
+                terkep: ertek('f_terkep'), seo_title: ertek('f_seo_title'), seo_metadesc: ertek('f_seo_metadesc'),
+            };
+        }
+
+        function alkalmazSnapshot(m) {
+            const beir = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+            beir('f_title', m.title); beir('f_status', m.status); beir('f_parent', m.parent);
+            beir('f_leiras', m.leiras); beir('f_penznem', m.penznem); beir('f_nyelv', m.nyelv);
+            beir('f_idozona', m.idozona); beir('f_beutazas', m.beutazas);
+            beir('f_legjobb_idoszak', m.legjobb_idoszak); beir('f_repuloter', m.repuloter);
+            beir('f_repules_ido', m.repules_ido); beir('f_terkep', m.terkep);
+            beir('f_seo_title', m.seo_title); beir('f_seo_metadesc', m.seo_metadesc);
+            document.getElementById('f_seo_title').dispatchEvent(new Event('input'));
+            document.getElementById('f_seo_metadesc').dispatchEvent(new Event('input'));
+            const szintEl = document.getElementById('f_szint');
+            szintEl.value = m.szint || '';
+            szintEl.dispatchEvent(new Event('change'));
+            if (contentBlokkok) contentBlokkok.setHtml(m.content || '');
+        }
+
+        function vazlatMentes() {
+            if (!dirty) return;
+            try {
+                localStorage.setItem(vazlatKulcs(), JSON.stringify({ t: Date.now(), mezok: formSnapshot() }));
+            } catch { /* tele a tár — a vázlat kimarad, a szerkesztés megy tovább */ }
+        }
+
+        function vazlatTorles(kulcs) {
+            try { localStorage.removeItem(kulcs || vazlatKulcs()); } catch {}
+        }
+
+        // Betöltés után: ha van a bejegyzéshez helyi vázlat, ami eltér a
+        // mentett változattól, felajánljuk a visszatöltését.
+        function vazlatAjanlat() {
+            let raw = null;
+            try { raw = localStorage.getItem(vazlatKulcs()); } catch {}
+            if (!raw) return;
+            let v;
+            try { v = JSON.parse(raw); } catch { vazlatTorles(); return; }
+            const m = v.mezok || {};
+            // A form ilyenkor a frissen betöltött (mentett) értékeket tartalmazza —
+            // ha a vázlat mezőről mezőre ugyanaz, nincs mit visszahozni.
+            if (JSON.stringify(m) === JSON.stringify(formSnapshot())) {
+                vazlatTorles();
+                return;
+            }
+            const mikor = new Date(v.t).toLocaleString('hu-HU');
+            if (confirm(`Találtam egy nem mentett helyi vázlatot ehhez a bejegyzéshez (${mikor}). Visszatöltsem?\n\nOK = a vázlat betöltődik (mentés még nem történik)\nMégse = a vázlat törlődik, a mentett változat marad`)) {
+                alkalmazSnapshot(m);
+                dirty = true;
+                frissitMentesGomb();
+            } else {
+                vazlatTorles();
+            }
+        }
+
+        const editorPanelEl = document.getElementById('editorPanel');
+        editorPanelEl.addEventListener('input', jeloljModositast);
+        editorPanelEl.addEventListener('change', jeloljModositast);
+
+        window.addEventListener('beforeunload', e => {
+            if (!dirty) return;
+            vazlatMentes(); // az utolsó állapot azonnal vázlatba
+            e.preventDefault();
+            e.returnValue = '';
+        });
 
         guardPage(async user => {
             initSidebar(user);
@@ -160,6 +262,11 @@
         }
 
         async function selectItem(id) {
+            if (dirty) {
+                vazlatMentes(); // biztos, ami biztos: az aktuális állapot vázlatba
+                if (!confirm('Mentetlen módosításaid vannak. Átlépsz mentés nélkül?\n\n(A módosításokat helyi vázlatként megőrzöm, visszatöltéskor felajánlom.)')) return;
+                dirty = false;
+            }
             activeId = id;
             renderList();
             if (id === null) { renderEditor(emptyItem()); return; }
@@ -247,9 +354,8 @@
 
                 <div class="input-group">
                     <label class="input-label">Bemutató szöveg</label>
-                    <div class="input-hint" style="margin-bottom:8px;">Blokkokból építkezhetsz: szöveg- és kép-blokkokat szúrhatsz be a „+" sávokkal, a ↑ ↓ gombokkal átrendezheted őket. A kép-blokkok a Galéria fotóiból választanak.</div>
+                    <div class="input-hint" style="margin-bottom:8px;">Blokkokból építkezhetsz: szöveg-, kép-, kép+szöveg- és kép-sor-blokkokat szúrhatsz be a „+" sávokkal. Átrendezés: húzd a blokkot a fejlécénél fogva, vagy használd a ↑ ↓ gombokat. A kép-blokkok a Galéria fotóiból választanak.</div>
                     <div id="blokkSzerkeszto"></div>
-                    <input type="hidden" id="f_content">
                 </div>
 
                 <div class="crud-section-title" id="szintFieldsTitle">📋 Adatok &amp; gyakorlati infó</div>
@@ -300,8 +406,9 @@
                     <textarea class="input-field" id="f_seo_metadesc" rows="2" maxlength="200">${escapeHtml(item.seo_metadesc)}</textarea>
                 </div>
 
-                <div style="display:flex; gap:12px; margin-top:24px;">
+                <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
                     <button class="btn btn-primary" id="saveBtn">💾 Mentés</button>
+                    <button class="btn btn-ghost" id="previewBtn" type="button">👁️ Előnézet</button>
                     ${item.permalink ? `<a class="btn btn-ghost" href="${item.permalink}" target="_blank">Megnézem élesben ↗</a>` : ''}
                     ${item.edit_url ? `<a class="btn btn-ghost" href="${item.edit_url}" target="_blank">WP admin ↗</a>` : ''}
                 </div>
@@ -312,6 +419,16 @@
                 initialHtml: item.content,
                 galeriaProvider: () => (currentItem && currentItem.galeria) || [],
                 onUres: () => toast('Előbb tölts fel képeket a Galéria részben, utána illesztheted őket blokk-ként a szövegbe.', 'info'),
+                onChange: jeloljModositast,
+            });
+
+            document.getElementById('previewBtn').addEventListener('click', () => {
+                showElonezet({
+                    title: document.getElementById('f_title').value,
+                    leiras: document.getElementById('f_leiras').value,
+                    contentHtml: getContentHtml(),
+                    galeria: (currentItem && currentItem.galeria) || [],
+                });
             });
 
             document.getElementById('aiBtn').addEventListener('click', () => {
@@ -348,6 +465,15 @@
 
             renderGaleria();
             document.getElementById('galeriaFileInput').addEventListener('change', handleGaleriaUpload);
+
+            // A fenti feltöltés/inicializálás közben elsütött eseményekre nem
+            // számítjuk a bejegyzést módosítottnak — tiszta lappal indulunk.
+            clearTimeout(vazlatTimer);
+            dirty = false;
+            frissitMentesGomb();
+
+            // Ha maradt helyi vázlat (lefagyás, véletlen bezárás), felajánljuk.
+            vazlatAjanlat();
         }
 
         // ---- Galéria: rács kirajzolása a currentItem.galeria (id/url/caption) alapján ----
@@ -424,11 +550,16 @@
             const promptEl = document.getElementById('aiPrompt');
             const btn = document.getElementById('aiGenerateBtn');
             if (!promptEl.value.trim()) { toast('Írj néhány szót arról, mi jellemzi ezt a helyet.', 'info'); return; }
+            // Ha már van kézzel épített tartalom, nem írjuk felül szó nélkül:
+            // a szöveg-blokkok cserélődnek, a kép-alapú blokkok megmaradnak.
+            const vanTartalom = getContentHtml().replace(/<[^>]+>|&nbsp;|\s/g, '') !== '';
+            if (vanTartalom && !confirm('A generált szöveg lecseréli a mostani szöveg-blokkokat.\nA kép-blokkjaid megmaradnak, a szöveg után kerülnek (utána átrendezheted őket).\n\nFolytassam?')) return;
             btn.disabled = true; btn.textContent = 'Generálás…';
             try {
                 const result = await generateWithAI('uticel', promptEl.value.trim());
                 if (result.leiras) document.getElementById('f_leiras').value = result.leiras;
-                if (result.tartalom && contentBlokkok) contentBlokkok.setHtml(result.tartalom);
+                if (result.tartalom && contentBlokkok) contentBlokkok.cserelSzoveg(result.tartalom);
+                jeloljModositast();
                 toast('AI-szöveg beillesztve – nézd át mentés előtt!', 'success');
             } catch (e) {
                 toast('AI hiba: ' + e.message, 'error');
@@ -437,21 +568,13 @@
             }
         }
 
-        // A rejtett f_content mező szinkronizálása a blokk-szerkesztő tartalmával
-        // (mentés és SEO-javaslat előtt hívandó).
-        function syncContent() {
-            const html = contentBlokkok ? contentBlokkok.getHtml() : '';
-            document.getElementById('f_content').value = html;
-            return html;
-        }
-
         async function runSeoSuggestion() {
             const btn = document.getElementById('seoAiBtn');
             btn.disabled = true; btn.textContent = 'Generálás…';
             try {
                 const result = await generateSeoSuggestion({
                     title: document.getElementById('f_title').value,
-                    contentHtml: syncContent(),
+                    contentHtml: getContentHtml(),
                 });
                 if (result.seo_title) {
                     document.getElementById('f_seo_title').value = result.seo_title;
@@ -472,7 +595,7 @@
         async function saveItem() {
             const body = {
                 title: document.getElementById('f_title').value.trim(),
-                content: syncContent(),
+                content: getContentHtml(),
                 status: document.getElementById('f_status').value,
                 parent: document.getElementById('f_parent').value,
                 tpu_leiras: document.getElementById('f_leiras').value,
@@ -492,18 +615,23 @@
 
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = true; saveBtn.textContent = 'Mentés…';
+            const vazlatKulcsMenteskor = vazlatKulcs(); // create-nél még '…uj'
             try {
                 const saved = activeId
                     ? await apiCall(PROXY, { action: 'update', extraQuery: { id: activeId }, body })
                     : await apiCall(PROXY, { action: 'create', body });
                 activeId = saved.id;
+                vazlatTorles(vazlatKulcsMenteskor); // sikeres mentés — a helyi vázlatra nincs többé szükség
+                dirty = false;
                 toast('Elmentve!', 'success');
                 await loadAll();
                 renderEditor(saved);
             } catch (e) {
                 toast('Mentés sikertelen: ' + e.message, 'error');
             } finally {
-                saveBtn.disabled = false; saveBtn.textContent = '💾 Mentés';
+                const btn = document.getElementById('saveBtn');
+                if (btn) { btn.disabled = false; }
+                frissitMentesGomb(); // sikertelen mentésnél a jelzés megmarad
             }
         }
 
@@ -529,8 +657,6 @@
             }
         }
 
-        function escapeHtml(s) { return (s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
-        function escapeAttr(s) { return (s ?? '').toString().replace(/"/g, '&quot;'); }
     </script>
 </body>
 </html>

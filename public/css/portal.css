@@ -274,12 +274,6 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 }
 .ql-editor { color: var(--text-primary); min-height: 160px; }
 .ql-editor.ql-blank::before { color: var(--text-muted); font-style: normal; }
-/* A szövegbe beszúrt kép-jelölő (tpu-inline-kep) a szerkesztőben – csak
-   előnézet, az éles oldalon a plugin sajátos, keretezett módon jeleníti meg. */
-.ql-editor img.tpu-inline-kep {
-    display: block; max-width: 320px; width: 100%; height: auto;
-    border-radius: var(--radius-sm); border: 1px solid var(--border); margin: 8px 0;
-}
 .ql-snow .ql-stroke { stroke: var(--text-secondary); }
 .ql-snow .ql-fill { fill: var(--text-secondary); }
 .ql-snow .ql-picker { color: var(--text-secondary); }
@@ -313,4 +307,127 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 @media (max-width: 768px) {
     .toast-container { bottom: 16px; right: 16px; left: 16px; }
     .toast { max-width: 100%; }
+}
+
+/* ---- Blokk-szerkesztő: drag & drop ---- */
+.blokk-fejlec { cursor: grab; }
+.blokk-fejlec:active { cursor: grabbing; }
+.blokk--huzott { opacity: .45; }
+.blokk--drop-ele { box-shadow: 0 -3px 0 0 var(--gold); }
+.blokk--drop-utan { box-shadow: 0 3px 0 0 var(--gold); }
+
+/* ---- Blokk-szerkesztő: blokk-opciók (kép-méret, kép-pozíció) ---- */
+.blokk-opciok {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 10px 10px; font-size: 12px; color: var(--text-muted);
+}
+.blokk-opciok select { width: auto; font-size: 12px; padding: 4px 8px; }
+
+/* ---- Blokk-szerkesztő: hiányzó galéria-kép jelzése ---- */
+.blokk-kep-hiba {
+    margin-top: 6px; font-size: 12px; line-height: 1.4;
+    color: #fbbf24;
+}
+
+/* ---- Blokk-szerkesztő: kép+szöveg páros blokk ---- */
+.blokk-kepszoveg-grid {
+    display: grid; grid-template-columns: 240px 1fr; gap: 10px;
+    padding: 0 10px 10px; align-items: start;
+}
+.blokk-kepszoveg-grid--jobb .blokk-kep-elonezet { order: 2; }
+.blokk-kepszoveg-grid .blokk-kep-elonezet { padding: 0; }
+.blokk-kepszoveg-szoveg .ql-editor { min-height: 110px; }
+@media (max-width: 700px) {
+    .blokk-kepszoveg-grid { grid-template-columns: 1fr; }
+    .blokk-kepszoveg-grid--jobb .blokk-kep-elonezet { order: 0; }
+}
+
+/* ---- Blokk-szerkesztő: kép-sor blokk ---- */
+.blokk-galeriasor { display: flex; gap: 10px; padding: 10px; flex-wrap: wrap; align-items: flex-start; }
+.blokk-galeriasor-kep { position: relative; width: 160px; }
+.blokk-galeriasor-kep img {
+    width: 100%; height: auto; display: block;
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+}
+.blokk-galeriasor-torles { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.6); }
+.blokk-galeriasor-add {
+    width: 56px; aspect-ratio: 1; align-self: center;
+    border: 2px dashed var(--border); border-radius: var(--radius-sm);
+    background: none; color: var(--text-muted); font-size: 22px; cursor: pointer;
+    transition: all var(--transition);
+}
+.blokk-galeriasor-add:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ---- Visszavonás-toast (blokk-törlés után) ---- */
+.toast--undo { display: flex; align-items: center; gap: 12px; }
+.toast-undo-gomb {
+    background: none; border: 1px solid currentColor; border-radius: var(--radius-sm);
+    color: inherit; cursor: pointer; font-size: 12px; font-weight: 600; padding: 3px 10px;
+}
+
+/* ---- Előnézet-modal (közelítő éles megjelenés, fehér lapon) ---- */
+.elonezet-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0, 0, 0, .65);
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 24px; overflow-y: auto;
+}
+.elonezet-lap {
+    background: #fff; border-radius: 12px; max-width: 900px; width: 100%;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+}
+.elonezet-fejlec {
+    position: sticky; top: 0; z-index: 1;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    background: var(--bg-card); color: var(--text-secondary);
+    padding: 10px 16px; border-radius: 12px 12px 0 0; font-size: 13px;
+}
+.elonezet-bezar { background: none; border: none; color: inherit; font-size: 16px; cursor: pointer; }
+.elonezet-tartalom { padding: 28px 36px 44px; }
+@media (max-width: 700px) { .elonezet-tartalom { padding: 18px 14px 28px; } }
+
+/* A plugin frontend.css-ének tükrözése (világos alapon, közelítőleg).
+   ALAPSZABÁLY itt is: 16:9 keret + object-fit:contain — SOSEM vág. */
+.tpu-elonezet { font-family: 'Inter', sans-serif; line-height: 1.65; color: #1e293b; }
+.tpu-elonezet h1 { font-size: 1.9rem; margin: 0 0 .7rem; color: #0f172a; }
+.tpu-elonezet h2 { font-size: 1.45rem; margin: 1.6rem 0 .8rem; color: #0f172a; }
+.tpu-elonezet h3 { font-size: 1.2rem; margin: 1.4rem 0 .6rem; color: #0f172a; }
+.tpu-elonezet p { margin: .7rem 0; }
+.tpu-elonezet a { color: #0e7490; }
+.tpu-elonezet-lead { font-size: 1.05rem; color: #475569; font-style: italic; }
+.tpu-elonezet .tpu-kep-blokk { max-width: 680px; margin: 1.9rem auto 2.1rem; }
+.tpu-elonezet .tpu-kep-blokk img {
+    width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+    background: #eef1f3; display: block; border-radius: 10px;
+}
+.tpu-elonezet .tpu-kep-blokk--teljes { max-width: none; }
+.tpu-elonezet .tpu-kep-blokk--kicsi { max-width: 420px; }
+.tpu-elonezet .tpu-kep-blokk figcaption {
+    font-size: .82rem; font-style: italic; color: #64748b;
+    margin-top: .45rem; text-align: center;
+}
+.tpu-elonezet .tpu-kep-szoveg {
+    display: grid; grid-template-columns: 5fr 6fr; gap: 1.6rem;
+    align-items: center; margin: 1.9rem 0 2.1rem;
+}
+.tpu-elonezet .tpu-kep-szoveg .tpu-kep-blokk { margin: 0; max-width: none; }
+.tpu-elonezet .tpu-kep-szoveg--jobb .tpu-kep-blokk { order: 2; }
+.tpu-elonezet .tpu-galeria-sor { display: flex; gap: .9rem; margin: 1.9rem 0 2.1rem; }
+.tpu-elonezet .tpu-galeria-sor .tpu-kep-blokk { flex: 1 1 0; min-width: 0; margin: 0; max-width: none; }
+.tpu-elonezet .tpu-single-alcim { font-size: 1.4rem; margin: 2rem 0 1rem; color: #0f172a; }
+.tpu-elonezet-mozaik { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .8rem; }
+.tpu-elonezet-csempe { position: relative; border-radius: 10px; overflow: hidden; }
+.tpu-elonezet-csempe img {
+    width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+    background: #eef1f3; display: block;
+}
+.tpu-elonezet-csempe span {
+    position: absolute; inset: auto 0 0 0; padding: 1.2rem .6rem .45rem;
+    background: linear-gradient(transparent, rgba(15, 23, 42, .75));
+    color: #fff; font-weight: 700; font-size: .9rem;
+}
+@media (max-width: 700px) {
+    .tpu-elonezet .tpu-kep-szoveg { grid-template-columns: 1fr; gap: 1rem; }
+    .tpu-elonezet .tpu-kep-szoveg--jobb .tpu-kep-blokk { order: 0; }
+    .tpu-elonezet .tpu-galeria-sor { flex-direction: column; }
 }
