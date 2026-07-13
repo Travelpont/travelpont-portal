@@ -6,8 +6,19 @@
     <title>Úticélok – Travelpont Portal</title>
     <meta name="theme-color" content="#0e7490">
     <link rel="stylesheet" href="css/portal.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+    <!-- TipTap (vászon-szerkesztő) az esm.sh CDN-ről. A core SZÁNDÉKOSAN
+         ^-os (caret) verzióval megy: a starter-kit belső core-importja is
+         ^3.27.4, így a kettő garantáltan UGYANARRA a példányra oldódik fel
+         (két külön core-példány = rejtélyes ProseMirror-hibák).
+         Verzióemeléskor mindkét sort együtt kell frissíteni! -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@tiptap/core": "https://esm.sh/@tiptap/core@^3.27.4",
+            "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@3.27.4"
+        }
+    }
+    </script>
 </head>
 <body>
     <div class="portal-layout">
@@ -43,12 +54,38 @@
         import { auth, storage } from './js/firebase-config.js';
         import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
         import { generateWithAI, generateSeoSuggestion } from './js/ai-helper.js';
-        import { createBlokkSzerkeszto } from './js/blokk-szerkeszto.js';
         import { showElonezet } from './js/elonezet.js';
         import { escapeHtml, escapeAttr } from './js/tpu-format.js';
         import { attachCharCounter } from './js/char-counter.js';
 
         const PROXY = API_CONFIG.UTICEL_PROXY_URL;
+
+        // A vászon-szerkesztő TipTap-ot tölt az esm.sh CDN-ről (importmap a
+        // head-ben). Ha a CDN nem érhető el, textarea-fallback lép életbe,
+        // hogy a tartalom akkor is szerkeszthető maradjon.
+        let createVaszonSzerkeszto = null;
+        try {
+            ({ createVaszonSzerkeszto } = await import('./js/vaszon-szerkeszto.js'));
+        } catch (e) {
+            console.error('A vászon-szerkesztő nem tudott betölteni (CDN-hiba?):', e);
+        }
+
+        function fallbackSzerkeszto(containerId, initialHtml, onChange) {
+            const c = document.getElementById(containerId);
+            c.innerHTML = `
+                <div class="input-hint" style="margin-bottom:6px;">⚠️ A vizuális szerkesztő nem tudott betölteni — egyszerű HTML-nézetben szerkesztesz. Frissítsd az oldalt, ha visszajött a net.</div>
+                <textarea class="input-field" style="min-height:220px;"></textarea>`;
+            const ta = c.querySelector('textarea');
+            ta.value = initialHtml || '';
+            ta.addEventListener('input', () => { if (onChange) onChange(); });
+            return {
+                getHtml: () => ta.value,
+                setHtml: h => { ta.value = h || ''; },
+                cserelSzoveg: h => { ta.value = h || ''; },
+                refreshGaleria: () => {},
+                destroy: () => {},
+            };
+        }
 
         let items = [];       // teljes lista (list action, thumbnail-lel is)
         let metaFlat = [];    // meta action – teljes flat lista (szülő-választóhoz)
@@ -300,6 +337,7 @@
         }
 
         function renderEditor(item) {
+            if (contentBlokkok && contentBlokkok.destroy) contentBlokkok.destroy();
             currentItem = item;
 
             document.getElementById('editorPanel').innerHTML = `
@@ -354,7 +392,7 @@
 
                 <div class="input-group">
                     <label class="input-label">Bemutató szöveg</label>
-                    <div class="input-hint" style="margin-bottom:8px;">Blokkokból építkezhetsz: szöveg-, kép-, kép+szöveg- és kép-sor-blokkokat szúrhatsz be a „+" sávokkal. Átrendezés: húzd a blokkot a fejlécénél fogva, vagy használd a ↑ ↓ gombokat. A kép-blokkok a Galéria fotóiból választanak.</div>
+                    <div class="input-hint" style="margin-bottom:8px;">Egyetlen írófelület: a 🖼️ gombokkal képet, kép+szöveget vagy kép-sort szúrhatsz be pontosan oda, ahol a kurzor áll — meglévő szöveg közepébe is. A widgetek a fejlécük ↑ ↓ gombjaival mozgathatók, a Ctrl+Z visszavon. A képek a Galéria fotóiból választhatók.</div>
                     <div id="blokkSzerkeszto"></div>
                 </div>
 
@@ -414,13 +452,15 @@
                 </div>
             `;
 
-            contentBlokkok = createBlokkSzerkeszto({
-                containerId: 'blokkSzerkeszto',
-                initialHtml: item.content,
-                galeriaProvider: () => (currentItem && currentItem.galeria) || [],
-                onUres: () => toast('Előbb tölts fel képeket a Galéria részben, utána illesztheted őket blokk-ként a szövegbe.', 'info'),
-                onChange: jeloljModositast,
-            });
+            contentBlokkok = createVaszonSzerkeszto
+                ? createVaszonSzerkeszto({
+                    containerId: 'blokkSzerkeszto',
+                    initialHtml: item.content,
+                    galeriaProvider: () => (currentItem && currentItem.galeria) || [],
+                    onUres: () => toast('Előbb tölts fel képeket a Galéria részben, utána illesztheted őket a szövegbe.', 'info'),
+                    onChange: jeloljModositast,
+                })
+                : fallbackSzerkeszto('blokkSzerkeszto', item.content, jeloljModositast);
 
             document.getElementById('previewBtn').addEventListener('click', () => {
                 showElonezet({

@@ -431,3 +431,126 @@ textarea.input-field { resize: vertical; min-height: 90px; }
     .tpu-elonezet .tpu-kep-szoveg--jobb .tpu-kep-blokk { order: 0; }
     .tpu-elonezet .tpu-galeria-sor { flex-direction: column; }
 }
+
+/* ==== Vászon-szerkesztő (TipTap) ==== */
+.vaszon {
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg-input); overflow: hidden;
+}
+.vaszon-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+    padding: 6px 8px; background: var(--bg-card); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 5;
+}
+.vaszon-toolbar-gomb {
+    min-width: 30px; padding: 4px 8px; background: none;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
+    color: var(--text-secondary); cursor: pointer; font-size: 13px; line-height: 1.3;
+}
+.vaszon-toolbar-gomb:hover { border-color: var(--border); color: var(--text-primary); }
+.vaszon-toolbar-gomb.aktiv { color: var(--gold); border-color: var(--gold-dim); background: var(--gold-dim); }
+.vaszon-toolbar-elvalaszto { width: 1px; align-self: stretch; margin: 2px 6px; background: var(--border); }
+
+/* Írólap (ProseMirror gyökér) */
+.vaszon-lap .ProseMirror {
+    min-height: 260px; padding: 14px 16px; outline: none;
+    color: var(--text-primary); font-family: 'Inter', sans-serif;
+    font-size: 14px; line-height: 1.65;
+}
+.vaszon-lap .ProseMirror p { margin: .5em 0; }
+.vaszon-lap .ProseMirror h2 { font-size: 1.35em; margin: 1em 0 .4em; }
+.vaszon-lap .ProseMirror h3 { font-size: 1.15em; margin: .9em 0 .35em; }
+.vaszon-lap .ProseMirror ul, .vaszon-lap .ProseMirror ol { padding-left: 1.4em; margin: .5em 0; }
+.vaszon-lap .ProseMirror li > p { margin: .15em 0; }
+.vaszon-lap .ProseMirror blockquote {
+    border-left: 3px solid var(--gold); margin: .6em 0; padding: .1em 0 .1em .9em;
+    color: var(--text-secondary);
+}
+.vaszon-lap .ProseMirror a { color: var(--gold); }
+.vaszon-lap .ProseMirror hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+
+/* Kijelölt widget jelzése + gapcursor (kurzor widgetek között) */
+.vaszon-lap .ProseMirror-selectednode { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: var(--radius-md); }
+.ProseMirror-gapcursor { display: none; pointer-events: none; position: absolute; }
+.ProseMirror-gapcursor:after {
+    content: ""; display: block; position: absolute; top: -2px; width: 20px;
+    border-top: 1px solid currentColor;
+    animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+@keyframes ProseMirror-cursor-blink { to { visibility: hidden; } }
+.ProseMirror-focused .ProseMirror-gapcursor { display: block; }
+
+/* Widget-kártyák a vásznon */
+.vaszon-widget {
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg-card); margin: 10px 0; overflow: hidden;
+}
+.vaszon-widget-fejlec {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 4px 10px; background: var(--bg-input); border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--text-muted);
+    opacity: .8; transition: opacity var(--transition);
+}
+.vaszon-widget:hover .vaszon-widget-fejlec { opacity: 1; }
+.vaszon-widget-gombok { display: flex; gap: 4px; align-items: center; }
+.vaszon-gomb {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-secondary); cursor: pointer; font-size: 12px; padding: 2px 8px; line-height: 1.4;
+}
+.vaszon-gomb:hover { border-color: var(--gold); color: var(--gold); }
+.vaszon-gomb--torles:hover { border-color: var(--red); color: var(--red); }
+.vaszon-select {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-secondary); font-size: 12px; padding: 2px 6px;
+}
+.vaszon-kep-resz { padding: 10px; }
+.vaszon-kep-resz img {
+    display: block; max-width: 320px; width: 100%; height: auto;
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+}
+.vaszon-kep-felirat { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-style: italic; }
+.vaszon-kep-hiba { margin-top: 6px; font-size: 12px; line-height: 1.4; color: #fbbf24; }
+
+/* Kép+szöveg widget: kép + a widgeten BELÜL szerkeszthető szöveg */
+.vaszon-kepszoveg-grid {
+    display: grid; grid-template-columns: 240px 1fr; gap: 10px;
+    padding: 0 10px 10px; align-items: start;
+}
+.vaszon-kepszoveg-grid--jobb .vaszon-kep-resz { order: 2; }
+.vaszon-kepszoveg-grid .vaszon-kep-resz { padding: 10px 0 0; }
+.vaszon-kepszoveg-tartalom {
+    border: 1px dashed var(--border); border-radius: var(--radius-sm);
+    padding: 8px 12px; min-height: 90px; margin-top: 10px;
+}
+.vaszon-kepszoveg-tartalom:focus-within { border-color: var(--gold); }
+@media (max-width: 700px) {
+    .vaszon-kepszoveg-grid { grid-template-columns: 1fr; }
+    .vaszon-kepszoveg-grid--jobb .vaszon-kep-resz { order: 0; }
+}
+
+/* Kép-sor widget */
+.vaszon-galeriasor { display: flex; gap: 10px; padding: 10px; flex-wrap: wrap; align-items: flex-start; }
+.vaszon-galeriasor-kep { position: relative; width: 150px; }
+.vaszon-galeriasor-kep img { max-width: 100%; }
+.vaszon-galeriasor-torles { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.6); }
+.vaszon-galeriasor-add {
+    width: 56px; aspect-ratio: 1; align-self: center;
+    border: 2px dashed var(--border); border-radius: var(--radius-sm);
+    background: none; color: var(--text-muted); font-size: 22px; cursor: pointer;
+    transition: all var(--transition);
+}
+.vaszon-galeriasor-add:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Kép-választó modal */
+.vaszon-kepvalaszto-overlay {
+    position: fixed; inset: 0; z-index: 1100; background: rgba(0, 0, 0, .6);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.vaszon-kepvalaszto {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 14px; max-width: 640px; width: 94%; max-height: 80vh; overflow-y: auto;
+}
+.vaszon-kepvalaszto-fejlec {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    margin-bottom: 10px; font-size: 13px; color: var(--text-secondary);
+}
