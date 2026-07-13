@@ -158,6 +158,11 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 .crud-layout { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 24px; align-items: start; }
 @media (max-width: 900px) { .crud-layout { grid-template-columns: 1fr; } }
 
+/* Fókuszált szerkesztő-elrendezés (uticelok.html): szélesebb munkaterület,
+   keskenyebb lista-panel — a hely a szerkesztőé. */
+.page-content--szeles { max-width: 1600px; }
+.crud-layout--fokusz { grid-template-columns: minmax(230px, 290px) 1fr; }
+
 .crud-list-panel { padding: 16px; max-height: calc(100vh - 160px); overflow-y: auto; position: sticky; top: 84px; }
 .crud-search { margin-bottom: 12px; }
 .crud-list-item {
@@ -434,13 +439,60 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 
 /* ==== Vászon-szerkesztő (TipTap) ==== */
 .vaszon {
+    display: grid; grid-template-columns: 64px 1fr;
     border: 1px solid var(--border); border-radius: var(--radius-md);
-    background: var(--bg-input); overflow: hidden;
+    background: var(--bg-input); overflow: visible;
 }
+/* Bal oldali widget-paletta: hosszú szövegnél is mindig kéznél (sticky). */
+.vaszon-paletta {
+    border-right: 1px solid var(--border); background: var(--bg-card);
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.vaszon-paletta-belso {
+    position: sticky; top: 72px;
+    display: flex; flex-direction: column; gap: 4px; padding: 8px 5px;
+}
+.vaszon-paletta-cim {
+    font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-muted); text-align: center; margin-bottom: 2px;
+}
+.vaszon-paletta-gomb {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 2px; background: none; border: 1px solid transparent;
+    border-radius: var(--radius-sm); color: var(--text-secondary);
+    cursor: pointer; transition: all var(--transition);
+}
+.vaszon-paletta-gomb:hover { border-color: var(--gold-dim); color: var(--gold); background: var(--gold-dim); }
+.vaszon-paletta-felirat { font-size: 9.5px; line-height: 1.15; text-align: center; }
+@media (max-width: 700px) {
+    .vaszon { grid-template-columns: 1fr; }
+    .vaszon-paletta { border-right: none; border-bottom: 1px solid var(--border); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+    .vaszon-paletta-belso { position: static; flex-direction: row; flex-wrap: wrap; }
+    .vaszon-paletta-gomb { flex-direction: row; gap: 6px; padding: 6px 10px; }
+}
+
+/* Widget-ikonok: az SVG-t sziluettként használjuk (mask), a felület festi
+   currentColor-ral — amíg egy ikon-fájl hiányzik, az emoji-tartalék látszik. */
+.vaszon-ikonpar { display: inline-flex; align-items: center; justify-content: center; }
+.vaszon-ikon {
+    display: inline-block; width: 22px; height: 22px;
+    background-color: currentColor;
+    -webkit-mask: var(--vaszon-ikon) center / contain no-repeat;
+    mask: var(--vaszon-ikon) center / contain no-repeat;
+}
+.vaszon-ikon-emoji { display: none; font-size: 16px; line-height: 1; }
+.vaszon-ikonpar.ikon-hianyzik .vaszon-ikon { display: none; }
+.vaszon-ikonpar.ikon-hianyzik .vaszon-ikon-emoji { display: inline; }
+.vaszon-ikonpar--kicsi .vaszon-ikon { width: 14px; height: 14px; }
+.vaszon-ikonpar--kicsi .vaszon-ikon-emoji { font-size: 12px; }
+.vaszon-widget-cimke { display: inline-flex; align-items: center; gap: 6px; }
+
 .vaszon-toolbar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
     padding: 6px 8px; background: var(--bg-card); border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 5;
+    border-radius: 0 var(--radius-md) 0 0;
+    /* A fejléc-sáv 64px magas — az alatt tapad, így görgetésnél is látszik. */
+    position: sticky; top: 72px; z-index: 5;
 }
 .vaszon-toolbar-gomb {
     min-width: 30px; padding: 4px 8px; background: none;
@@ -453,7 +505,7 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 
 /* Írólap (ProseMirror gyökér) */
 .vaszon-lap .ProseMirror {
-    min-height: 260px; padding: 14px 16px; outline: none;
+    min-height: 420px; padding: 14px 16px; outline: none;
     color: var(--text-primary); font-family: 'Inter', sans-serif;
     font-size: 14px; line-height: 1.65;
 }

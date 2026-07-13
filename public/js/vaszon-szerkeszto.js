@@ -38,6 +38,43 @@ const KEP_MERETEK = [
     ['kicsi', 'Kicsi'],
 ];
 
+// ---- Widget-katalógus: a bal oldali paletta és a fejléc-címkék forrása ----
+// Az `ikon` a public/icons/szerkeszto/{ikon}.svg fájlra mutat (sziluettként,
+// CSS mask-kal színezve); amíg a fájl hiányzik, az emoji-tartalék látszik.
+const WIDGETEK = [
+    { cmd: 'kep', nev: 'Kép', rovid: 'Kép', emoji: '🖼️', ikon: 'kep' },
+    { cmd: 'kepszoveg', nev: 'Kép + szöveg', rovid: 'Kép+szöveg', emoji: '🖼️📝', ikon: 'kep-szoveg' },
+    { cmd: 'galeriasor', nev: 'Kép-sor', rovid: 'Kép-sor', emoji: '🖼️🖼️', ikon: 'kep-sor' },
+    { cmd: 'fotomozaik', nev: 'Fotó-mozaik', rovid: 'Mozaik', emoji: '📷', ikon: 'foto-mozaik' },
+];
+const WIDGET = Object.fromEntries(WIDGETEK.map(w => [w.cmd, w]));
+
+// Ikon-elérhetőség (modul-szintű, munkamenetenként egyszer próbáljuk).
+const ikonAllapot = new Map(); // ikon-név → true (betölt) | false (hiányzik)
+
+function ikonHtml(w, kicsi) {
+    return `<span class="vaszon-ikonpar${kicsi ? ' vaszon-ikonpar--kicsi' : ''} ikon-hianyzik" data-ikon="${w.ikon}">`
+        + `<span class="vaszon-ikon" style="--vaszon-ikon: url('icons/szerkeszto/${w.ikon}.svg')"></span>`
+        + `<span class="vaszon-ikon-emoji">${w.emoji}</span></span>`;
+}
+
+// A már ismert ikon-állapotok érvényesítése egy DOM-részfán.
+function alkalmazIkonok(gyoker) {
+    gyoker.querySelectorAll('.vaszon-ikonpar').forEach(el => {
+        el.classList.toggle('ikon-hianyzik', ikonAllapot.get(el.dataset.ikon) !== true);
+    });
+}
+
+function inditIkonProba(kesz) {
+    WIDGETEK.forEach(w => {
+        if (ikonAllapot.has(w.ikon)) return;
+        const img = new Image();
+        img.onload = () => { ikonAllapot.set(w.ikon, true); kesz(); };
+        img.onerror = () => { ikonAllapot.set(w.ikon, false); kesz(); };
+        img.src = `icons/szerkeszto/${w.ikon}.svg`;
+    });
+}
+
 // A stored-formátum invariánsainak érvényesítése a szerkesztő kimenetén.
 function normalizal(html) {
     return parseTartalom(html || '').map(leirasHtml).join('');
@@ -68,14 +105,33 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         return galeria.find(k => String(k.id) === String(id)) || null;
     }
 
-    // ---- Váz: eszköztár + írólap ----
+    // ---- Váz: bal oldali widget-paletta + eszköztár + írólap ----
     container.innerHTML = `
         <div class="vaszon">
-            <div class="vaszon-toolbar"></div>
-            <div class="vaszon-lap"></div>
+            <div class="vaszon-paletta">
+                <div class="vaszon-paletta-belso">
+                    <div class="vaszon-paletta-cim">Widget</div>
+                    ${WIDGETEK.map(w => `
+                        <button type="button" class="vaszon-paletta-gomb" data-cmd="${w.cmd}" title="${w.nev} beszúrása a kurzorhoz">
+                            ${ikonHtml(w)}
+                            <span class="vaszon-paletta-felirat">${w.rovid}</span>
+                        </button>`).join('')}
+                </div>
+            </div>
+            <div class="vaszon-fo">
+                <div class="vaszon-toolbar"></div>
+                <div class="vaszon-lap"></div>
+            </div>
         </div>`;
     const toolbarEl = container.querySelector('.vaszon-toolbar');
     const lapEl = container.querySelector('.vaszon-lap');
+
+    container.querySelector('.vaszon-paletta').addEventListener('click', e => {
+        const gomb = e.target.closest('button[data-cmd]');
+        if (gomb) futtatParancs(gomb.dataset.cmd);
+    });
+
+    inditIkonProba(() => alkalmazIkonok(container));
 
     // ---- Node view-k (szerkesztő-oldali widget-UI) ----
 
@@ -90,9 +146,9 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
             ${!friss ? '<div class="vaszon-kep-hiba">⚠️ Ez a kép már nincs a Galériában — érdemes törölni vagy cserélni.</div>' : ''}`;
     }
 
-    function widgetFejlecHtml(cimke, extra) {
+    function widgetFejlecHtml(w, extra) {
         return `
-            <span class="vaszon-widget-cimke">${cimke}</span>
+            <span class="vaszon-widget-cimke">${ikonHtml(w, true)}${w.nev}</span>
             <span class="vaszon-widget-gombok">
                 ${extra || ''}
                 <button type="button" class="vaszon-gomb" data-mit="fel" title="Mozgatás felfelé">↑</button>
@@ -152,7 +208,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
 
         function rajzol() {
             dom.innerHTML = `
-                <div class="vaszon-widget-fejlec">${widgetFejlecHtml('🖼️ Kép', `
+                <div class="vaszon-widget-fejlec">${widgetFejlecHtml(WIDGET.kep, `
                     <select class="vaszon-select" title="Megjelenítési méret">
                         ${KEP_MERETEK.map(([v, c]) => `<option value="${v}" ${(aktNode.attrs.meret || '') === v ? 'selected' : ''}>${c}</option>`).join('')}
                     </select>`)}
@@ -160,6 +216,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
                 <div class="vaszon-kep-resz">${kepReszHtml(aktNode.attrs)}</div>`;
             dom.querySelector('.vaszon-select').addEventListener('change', e => attrCsere(editor, getPos, { meret: e.target.value }));
             kossFejlecGombok(dom.querySelector('.vaszon-widget-fejlec'), editor, getPos);
+            alkalmazIkonok(dom);
         }
         rajzol();
 
@@ -197,7 +254,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         let aktNode = node;
 
         function rajzol() {
-            fejlec.innerHTML = widgetFejlecHtml('🖼️📝 Kép + szöveg', `
+            fejlec.innerHTML = widgetFejlecHtml(WIDGET.kepszoveg, `
                 <select class="vaszon-select" title="A kép helye">
                     <option value="bal" ${aktNode.attrs.pozicio !== 'jobb' ? 'selected' : ''}>Kép balra</option>
                     <option value="jobb" ${aktNode.attrs.pozicio === 'jobb' ? 'selected' : ''}>Kép jobbra</option>
@@ -206,6 +263,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
             kossFejlecGombok(fejlec, editor, getPos);
             grid.classList.toggle('vaszon-kepszoveg-grid--jobb', aktNode.attrs.pozicio === 'jobb');
             kepResz.innerHTML = kepReszHtml(aktNode.attrs);
+            alkalmazIkonok(fejlec);
         }
         rajzol();
 
@@ -233,7 +291,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         function rajzol() {
             const kepek = aktNode.attrs.kepek || [];
             dom.innerHTML = `
-                <div class="vaszon-widget-fejlec">${widgetFejlecHtml('🖼️🖼️ Kép-sor')}</div>
+                <div class="vaszon-widget-fejlec">${widgetFejlecHtml(WIDGET.galeriasor)}</div>
                 <div class="vaszon-galeriasor">
                     ${kepek.map((k, i) => `
                         <div class="vaszon-galeriasor-kep">${kepReszHtml(k)}
@@ -253,6 +311,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
             if (add) add.addEventListener('click', () => {
                 valasszKepet(kep => attrCsere(editor, getPos, { kepek: [...(aktNode.attrs.kepek || []), kep] }));
             });
+            alkalmazIkonok(dom);
         }
         rajzol();
 
@@ -289,7 +348,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
             const hasznalt = hasznaltIdk();
             const maradek = (galeriaProvider() || []).filter(k => !hasznalt.has(String(k.id)));
             dom.innerHTML = `
-                <div class="vaszon-widget-fejlec">${widgetFejlecHtml('📷 Fotó-mozaik')}</div>
+                <div class="vaszon-widget-fejlec">${widgetFejlecHtml(WIDGET.fotomozaik)}</div>
                 <div class="vaszon-fotomozaik-info">A szövegben fel nem használt galéria-képek jelennek meg itt rácsban, vágás nélkül. Tipp: tegyél elé egy címsort (pl. „További fotóink").</div>
                 ${maradek.length ? `
                     <div class="vaszon-fotomozaik-kepek">
@@ -297,6 +356,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
                     </div>`
                     : '<div class="vaszon-fotomozaik-info vaszon-fotomozaik-info--ures">Jelenleg minden galéria-kép szerepel a szövegben — a mozaik üresen marad (élesben nem látszik semmi).</div>'}`;
             kossFejlecGombok(dom.querySelector('.vaszon-widget-fejlec'), editor, getPos);
+            alkalmazIkonok(dom);
         }
         rajzol();
 
@@ -349,14 +409,11 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         { cmd: 'hr', jel: '—', tip: 'Elválasztó vonal' },
         { cmd: 'link', jel: '🔗', tip: 'Link beszúrása / eltávolítása' },
         { elvalaszto: true },
-        { cmd: 'kep', jel: '🖼️ Kép', tip: 'Kép beszúrása a kurzorhoz' },
-        { cmd: 'kepszoveg', jel: '🖼️📝', tip: 'Kép + szöveg beszúrása a kurzorhoz' },
-        { cmd: 'galeriasor', jel: '🖼️🖼️', tip: 'Kép-sor beszúrása a kurzorhoz' },
-        { cmd: 'fotomozaik', jel: '📷≡', tip: 'Fotó-mozaik: a szövegben nem használt galéria-képek rácsa' },
-        { elvalaszto: true },
         { cmd: 'undo', jel: '↺', tip: 'Visszavonás (Ctrl+Z)' },
         { cmd: 'redo', jel: '↻', tip: 'Újra (Ctrl+Y)' },
     ];
+    // A widget-beszúró gombok a bal oldali palettán élnek (lásd fent) —
+    // a felső sávban csak a szöveg-formázás maradt.
 
     toolbarEl.innerHTML = TOOLBAR.map(t => t.elvalaszto
         ? '<span class="vaszon-toolbar-elvalaszto"></span>'
