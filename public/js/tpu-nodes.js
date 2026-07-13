@@ -141,4 +141,22 @@ export const TpuGaleriaSor = Node.create({
     },
 });
 
-export const TPU_WIDGET_NEVEK = ['tpuKep', 'tpuKepSzoveg', 'tpuGaleriaSor'];
+// ---- 📷 Fotó-mozaik helyjelző: <div class="tpu-fotomozaik"></div> ----
+// A WP-oldal ezen a ponton rajzolja ki a szövegben fel nem használt
+// galéria-képek rácsát. A szerkesztőben tájékoztató kártyaként jelenik meg.
+export const TpuFotomozaik = Node.create({
+    name: 'tpuFotomozaik',
+    group: 'block',
+    atom: true,
+    draggable: true,
+
+    parseHTML() {
+        return [{ tag: 'div.tpu-fotomozaik' }];
+    },
+
+    renderHTML() {
+        return ['div', { class: 'tpu-fotomozaik' }];
+    },
+});
+
+export const TPU_WIDGET_NEVEK = ['tpuKep', 'tpuKepSzoveg', 'tpuGaleriaSor', 'tpuFotomozaik'];

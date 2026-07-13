@@ -554,3 +554,15 @@ textarea.input-field { resize: vertical; min-height: 90px; }
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
     margin-bottom: 10px; font-size: 13px; color: var(--text-secondary);
 }
+
+/* Fotó-mozaik widget-kártya a vásznon */
+.vaszon-fotomozaik-info {
+    padding: 10px 12px 0; font-size: 12.5px; line-height: 1.5;
+    color: var(--text-secondary);
+}
+.vaszon-fotomozaik-info--ures { color: var(--text-muted); padding-bottom: 10px; }
+.vaszon-fotomozaik-kepek { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px 12px; }
+.vaszon-fotomozaik-kepek img {
+    height: 56px; width: auto; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); display: block;
+}

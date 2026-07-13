@@ -27,7 +27,7 @@
 
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
-import { TpuKep, TpuKepSzoveg, TpuGaleriaSor } from './tpu-nodes.js';
+import { TpuKep, TpuKepSzoveg, TpuGaleriaSor, TpuFotomozaik } from './tpu-nodes.js';
 import { parseTartalom, leirasHtml, escapeHtml, escapeAttr } from './tpu-format.js';
 
 const SOR_MAX_KEP = 3;
@@ -52,9 +52,10 @@ function normalizal(html) {
  * @param {Function} opts.galeriaProvider () => [{id, url, caption}] – mindig a friss galéria.
  * @param {Function} [opts.onUres]        Visszajelzés, ha üres galériából próbálnának képet szúrni.
  * @param {Function} [opts.onChange]      Minden felhasználói módosításkor hívódik (dirty-követéshez).
+ * @param {Function} [opts.onUzenet]      Rövid tájékoztató üzenet a felhasználónak (pl. toast).
  * @returns {{getHtml, setHtml, cserelSzoveg, refreshGaleria, destroy}}
  */
-export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvider, onUres, onChange }) {
+export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvider, onUres, onChange, onUzenet }) {
     const container = document.getElementById(containerId);
     if (!container) return null;
 
@@ -269,6 +270,49 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         };
     }
 
+    // 📷 Fotó-mozaik helyjelző node view-ja: tájékoztató kártya, ami mutatja,
+    // hogy JELENLEG mely (a szövegben fel nem használt) képek kerülnének bele.
+    function fotomozaikNezet({ editor, getPos }) {
+        const dom = document.createElement('div');
+        dom.className = 'vaszon-widget vaszon-widget--fotomozaik';
+
+        function hasznaltIdk() {
+            const idk = new Set();
+            editor.state.doc.descendants(n => {
+                if (n.type.name === 'tpuKep' || n.type.name === 'tpuKepSzoveg') idk.add(String(n.attrs.id));
+                else if (n.type.name === 'tpuGaleriaSor') (n.attrs.kepek || []).forEach(k => idk.add(String(k.id)));
+            });
+            return idk;
+        }
+
+        function rajzol() {
+            const hasznalt = hasznaltIdk();
+            const maradek = (galeriaProvider() || []).filter(k => !hasznalt.has(String(k.id)));
+            dom.innerHTML = `
+                <div class="vaszon-widget-fejlec">${widgetFejlecHtml('📷 Fotó-mozaik')}</div>
+                <div class="vaszon-fotomozaik-info">A szövegben fel nem használt galéria-képek jelennek meg itt rácsban, vágás nélkül. Tipp: tegyél elé egy címsort (pl. „További fotóink").</div>
+                ${maradek.length ? `
+                    <div class="vaszon-fotomozaik-kepek">
+                        ${maradek.map(k => `<img src="${escapeAttr(k.url)}" title="${escapeAttr(k.caption || '')}">`).join('')}
+                    </div>`
+                    : '<div class="vaszon-fotomozaik-info vaszon-fotomozaik-info--ures">Jelenleg minden galéria-kép szerepel a szövegben — a mozaik üresen marad (élesben nem látszik semmi).</div>'}`;
+            kossFejlecGombok(dom.querySelector('.vaszon-widget-fejlec'), editor, getPos);
+        }
+        rajzol();
+
+        const peldany = { frissit: rajzol };
+        nezetek.add(peldany);
+        return {
+            dom,
+            update(n) {
+                if (n.type.name !== 'tpuFotomozaik') return false;
+                rajzol();
+                return true;
+            },
+            destroy() { nezetek.delete(peldany); },
+        };
+    }
+
     // ---- Szerkesztő létrehozása ----
     const editor = new Editor({
         element: lapEl,
@@ -283,6 +327,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
             TpuKep.extend({ addNodeView() { return kepNezet; } }),
             TpuKepSzoveg.extend({ addNodeView() { return kepSzovegNezet; } }),
             TpuGaleriaSor.extend({ addNodeView() { return galeriaSorNezet; } }),
+            TpuFotomozaik.extend({ addNodeView() { return fotomozaikNezet; } }),
         ],
         content: initialHtml || '',
         onUpdate: () => { if (onChange) onChange(); },
@@ -307,6 +352,7 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
         { cmd: 'kep', jel: '🖼️ Kép', tip: 'Kép beszúrása a kurzorhoz' },
         { cmd: 'kepszoveg', jel: '🖼️📝', tip: 'Kép + szöveg beszúrása a kurzorhoz' },
         { cmd: 'galeriasor', jel: '🖼️🖼️', tip: 'Kép-sor beszúrása a kurzorhoz' },
+        { cmd: 'fotomozaik', jel: '📷≡', tip: 'Fotó-mozaik: a szövegben nem használt galéria-képek rácsa' },
         { elvalaszto: true },
         { cmd: 'undo', jel: '↺', tip: 'Visszavonás (Ctrl+Z)' },
         { cmd: 'redo', jel: '↻', tip: 'Újra (Ctrl+Y)' },
@@ -357,6 +403,18 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
                     attrs: { kepek: [kep] },
                 }).run());
                 break;
+            case 'fotomozaik': {
+                let mar = false;
+                editor.state.doc.descendants(n => {
+                    if (n.type.name === 'tpuFotomozaik') { mar = true; return false; }
+                });
+                if (mar) {
+                    if (onUzenet) onUzenet('Fotó-mozaik már van a tartalomban — egy elég belőle.');
+                    break;
+                }
+                editor.chain().focus().insertContent({ type: 'tpuFotomozaik' }).run();
+                break;
+            }
             case 'undo': lanc.undo().run(); break;
             case 'redo': lanc.redo().run(); break;
         }

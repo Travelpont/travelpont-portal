@@ -4,8 +4,9 @@
 // A WordPress-oldali megjelenítés KÖZELÍTŐ tükrözése a Portálon belül:
 // a kép-jelölőket ugyanúgy keretezett <figure>-ré alakítja, mint a
 // travelpont-uticelok plugin (szoveg-kepek.php), a szövegben fel nem
-// használt galéria-képeket pedig a cikk végi "További fotóink" mozaikban
-// mutatja. A stílusok a portal.css .tpu-elonezet szekciójában élnek, a
+// használt galéria-képek mozaikja pedig a szerkesztő által elhelyezett
+// 📷 fotó-mozaik helyjelzőnél jelenik meg (helyjelző nélkül sehol —
+// mint élesben). A stílusok a portal.css .tpu-elonezet szekciójában élnek, a
 // plugin frontend.css-ének fényvilágát követve (fehér lap, 16:9 contain,
 // SOSEM vág). Nem pixelpontos — arra való, hogy mentés előtt látsszon a
 // szerkezet és a képek helye.
@@ -39,11 +40,11 @@ export function showElonezet({ title, leiras, contentHtml, galeria }) {
             + '</figure>';
     }
 
-    const tartalom = (contentHtml || '').replace(markerRe(), figureHtml);
+    let tartalom = (contentHtml || '').replace(markerRe(), figureHtml);
 
+    // Fotó-mozaik a helyjelzőnél (az első előfordulásnál; a többi eltűnik).
     const maradek = kepek.filter(k => !hasznalt.has(String(k.id)));
-    const mozaik = maradek.length ? `
-        <h2 class="tpu-single-alcim">További fotóink</h2>
+    const mozaikHtml = maradek.length ? `
         <div class="tpu-elonezet-mozaik">
             ${maradek.map(k => `
                 <div class="tpu-elonezet-csempe">
@@ -51,6 +52,12 @@ export function showElonezet({ title, leiras, contentHtml, galeria }) {
                     ${k.caption ? `<span>${escapeHtml(k.caption)}</span>` : ''}
                 </div>`).join('')}
         </div>` : '';
+    let voltMozaik = false;
+    tartalom = tartalom.replace(/<div[^>]*\btpu-fotomozaik\b[^>]*>\s*<\/div>/gi, () => {
+        if (voltMozaik) return '';
+        voltMozaik = true;
+        return mozaikHtml;
+    });
 
     const overlay = document.createElement('div');
     overlay.className = 'elonezet-overlay';
@@ -64,7 +71,6 @@ export function showElonezet({ title, leiras, contentHtml, galeria }) {
                 <h1>${escapeHtml(title || '(cím nélkül)')}</h1>
                 ${leiras ? `<p class="tpu-elonezet-lead">${escapeHtml(leiras)}</p>` : ''}
                 ${tartalom}
-                ${mozaik}
             </div>
         </div>`;
 

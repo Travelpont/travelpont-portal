@@ -392,7 +392,7 @@
 
                 <div class="input-group">
                     <label class="input-label">Bemutató szöveg</label>
-                    <div class="input-hint" style="margin-bottom:8px;">Egyetlen írófelület: a 🖼️ gombokkal képet, kép+szöveget vagy kép-sort szúrhatsz be pontosan oda, ahol a kurzor áll — meglévő szöveg közepébe is. A widgetek a fejlécük ↑ ↓ gombjaival mozgathatók, a Ctrl+Z visszavon. A képek a Galéria fotóiból választhatók.</div>
+                    <div class="input-hint" style="margin-bottom:8px;">Egyetlen írófelület: a 🖼️ gombokkal képet, kép+szöveget vagy kép-sort szúrhatsz be pontosan oda, ahol a kurzor áll — meglévő szöveg közepébe is. A 📷≡ fotó-mozaik a szövegben nem használt galéria-képeket mutatja ott, ahova teszed (enélkül nem jelennek meg sehol). A widgetek a ↑ ↓ gombokkal mozgathatók, a Ctrl+Z visszavon.</div>
                     <div id="blokkSzerkeszto"></div>
                 </div>
 
@@ -459,6 +459,7 @@
                     galeriaProvider: () => (currentItem && currentItem.galeria) || [],
                     onUres: () => toast('Előbb tölts fel képeket a Galéria részben, utána illesztheted őket a szövegbe.', 'info'),
                     onChange: jeloljModositast,
+                    onUzenet: uzenet => toast(uzenet, 'info'),
                 })
                 : fallbackSzerkeszto('blokkSzerkeszto', item.content, jeloljModositast);
 

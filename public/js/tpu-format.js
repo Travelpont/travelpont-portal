@@ -10,6 +10,8 @@
 //         jelölő + <div class="tpu-kep-szoveg-torzs">szöveg-HTML</div>
 //     </div>
 //     <div class="tpu-galeria-sor"> 2-3 jelölő </div>
+//     <div class="tpu-fotomozaik"></div>  ← helyjelző: ide kerül a szövegben
+//         fel nem használt galéria-képek rácsa (a tartalmát a WP tölti ki)
 //
 // A WordPress-oldali plugin (travelpont-uticelok ≥1.17.0) ugyanezt a
 // formátumot ismeri fel. A jelölő-felismerés MINDKÉT oldalon attribútum-
@@ -67,6 +69,9 @@ function kepAdat(tag) {
 // legelső </div></div> ill. </div> adja.
 const KEPSZOVEG_RE = /<div[^>]*class="[^"]*tpu-kep-szoveg[^"]*"[^>]*>((?:(?!<div)[\s\S])*?)<div[^>]*class="[^"]*tpu-kep-szoveg-torzs[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
 const GALERIASOR_RE = /<div[^>]*class="[^"]*tpu-galeria-sor[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+// Fotó-mozaik helyjelző: a WP-oldal EZEN a ponton rajzolja ki a szövegben
+// fel nem használt galéria-képek rácsát (üres div, tartalmát a WP adja).
+const FOTOMOZAIK_RE = /<div[^>]*class="[^"]*tpu-fotomozaik[^"]*"[^>]*>\s*<\/div>/gi;
 
 function talal(re, s, poz) {
     re.lastIndex = poz;
@@ -100,6 +105,7 @@ export function parseTartalom(html) {
         const talalatok = [
             ['kepszoveg', talal(KEPSZOVEG_RE, nyers, poz)],
             ['galeriasor', talal(GALERIASOR_RE, nyers, poz)],
+            ['fotomozaik', talal(FOTOMOZAIK_RE, nyers, poz)],
             ['kep', talal(markerRe(), nyers, poz)],
         ].filter(t => t[1]);
         if (!talalatok.length) break;
@@ -113,6 +119,8 @@ export function parseTartalom(html) {
 
         if (tipus === 'kep') {
             lista.push({ tipus: 'kep', kep: kepAdat(m[0]) });
+        } else if (tipus === 'fotomozaik') {
+            lista.push({ tipus: 'fotomozaik' });
         } else if (tipus === 'galeriasor') {
             const kepek = (m[1].match(markerRe()) || []).map(kepAdat);
             if (kepek.length) lista.push({ tipus: 'galeriasor', kepek });
@@ -146,6 +154,8 @@ export function leirasHtml(l) {
     switch (l.tipus) {
         case 'kep':
             return markerHtml(l.kep);
+        case 'fotomozaik':
+            return '<div class="tpu-fotomozaik"></div>';
         case 'galeriasor':
             return (l.kepek && l.kepek.length)
                 ? `<div class="tpu-galeria-sor">${l.kepek.map(markerHtml).join('')}</div>`
