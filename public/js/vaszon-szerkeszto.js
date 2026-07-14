@@ -42,6 +42,14 @@ const KEP_MERETEK = [
     ['kicsi', 'Kicsi'],
 ];
 
+// A kép+szöveg párosban ugyanaz a 3 tárolt érték, de itt a kép-OSZLOP
+// szélességét jelentik ('teljes' → széles oszlop, nem teljes sor).
+const KEPSZOVEG_MERETEK = [
+    ['kicsi', 'Kis kép'],
+    ['', 'Normál kép'],
+    ['teljes', 'Nagy kép'],
+];
+
 // ---- Widget-katalógus: a bal oldali paletta és a fejléc-címkék forrása ----
 // Az `ikon` a public/icons/szerkeszto/{ikon}.svg fájlra mutat (sziluettként,
 // CSS mask-kal színezve); amíg a fájl hiányzik, az emoji-tartalék látszik.
@@ -269,13 +277,19 @@ export function createVaszonSzerkeszto({ containerId, initialHtml, galeriaProvid
 
         function rajzol() {
             fejlec.innerHTML = widgetFejlecHtml(WIDGET.kepszoveg, `
-                <select class="vaszon-select" title="A kép helye">
+                <select class="vaszon-select vaszon-select--pozicio" title="A kép helye">
                     <option value="bal" ${aktNode.attrs.pozicio !== 'jobb' ? 'selected' : ''}>Kép balra</option>
                     <option value="jobb" ${aktNode.attrs.pozicio === 'jobb' ? 'selected' : ''}>Kép jobbra</option>
+                </select>
+                <select class="vaszon-select vaszon-select--meret" title="A kép mérete a szöveg mellett">
+                    ${KEPSZOVEG_MERETEK.map(([v, c]) => `<option value="${v}" ${(aktNode.attrs.meret || '') === v ? 'selected' : ''}>${c}</option>`).join('')}
                 </select>`);
-            fejlec.querySelector('.vaszon-select').addEventListener('change', e => attrCsere(editor, getPos, { pozicio: e.target.value }));
+            fejlec.querySelector('.vaszon-select--pozicio').addEventListener('change', e => attrCsere(editor, getPos, { pozicio: e.target.value }));
+            fejlec.querySelector('.vaszon-select--meret').addEventListener('change', e => attrCsere(editor, getPos, { meret: e.target.value }));
             kossFejlecGombok(fejlec, editor, getPos);
             grid.classList.toggle('vaszon-kepszoveg-grid--jobb', aktNode.attrs.pozicio === 'jobb');
+            grid.classList.toggle('vaszon-kepszoveg-grid--kicsi', aktNode.attrs.meret === 'kicsi');
+            grid.classList.toggle('vaszon-kepszoveg-grid--teljes', aktNode.attrs.meret === 'teljes');
             kepResz.innerHTML = kepReszHtml(aktNode.attrs);
             alkalmazIkonok(fejlec);
         }

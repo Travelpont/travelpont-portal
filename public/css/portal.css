@@ -417,6 +417,13 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 }
 .tpu-elonezet .tpu-kep-szoveg .tpu-kep-blokk { margin: 0; max-width: none; }
 .tpu-elonezet .tpu-kep-szoveg--jobb .tpu-kep-blokk { order: 2; }
+/* A kép-oszlop aránya a párosban választott képméret szerint. A :where()
+   nullázza a :has() specificitását, így a lenti mobil-szabály (1 oszlop)
+   továbbra is felülírja. --jobb-nál a kép a MÁSODIK oszlopba kerül (order). */
+.tpu-elonezet .tpu-kep-szoveg:where(:has(.tpu-kep-blokk--kicsi))        { grid-template-columns: 3fr 7fr; }
+.tpu-elonezet .tpu-kep-szoveg:where(:has(.tpu-kep-blokk--teljes))       { grid-template-columns: 3fr 2fr; }
+.tpu-elonezet .tpu-kep-szoveg--jobb:where(:has(.tpu-kep-blokk--kicsi))  { grid-template-columns: 7fr 3fr; }
+.tpu-elonezet .tpu-kep-szoveg--jobb:where(:has(.tpu-kep-blokk--teljes)) { grid-template-columns: 2fr 3fr; }
 .tpu-elonezet .tpu-galeria-sor { display: flex; gap: .9rem; margin: 1.9rem 0 2.1rem; }
 .tpu-elonezet .tpu-galeria-sor .tpu-kep-blokk { flex: 1 1 0; min-width: 0; margin: 0; max-width: none; }
 .tpu-elonezet .tpu-single-alcim { font-size: 1.4rem; margin: 2rem 0 1rem; color: #0f172a; }
@@ -569,6 +576,9 @@ textarea.input-field { resize: vertical; min-height: 90px; }
     padding: 0 10px 10px; align-items: start;
 }
 .vaszon-kepszoveg-grid--jobb .vaszon-kep-resz { order: 2; }
+/* A kép-oszlop szélessége a fejlécben választott méret szerint. */
+.vaszon-kepszoveg-grid--kicsi  { grid-template-columns: 165px 1fr; }
+.vaszon-kepszoveg-grid--teljes { grid-template-columns: 340px 1fr; }
 .vaszon-kepszoveg-grid .vaszon-kep-resz { padding: 10px 0 0; }
 .vaszon-kepszoveg-tartalom {
     border: 1px dashed var(--border); border-radius: var(--radius-sm);
