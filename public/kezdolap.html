@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kezdőlap – Travelpont Portal</title>
+    <meta name="theme-color" content="#0e7490">
+    <link rel="stylesheet" href="css/portal.css">
+    <!-- TipTap a Szabad szekció vászon-szerkesztőjéhez (lásd uticelok.html,
+         a core SZÁNDÉKOSAN caret-es — a két sor együtt frissítendő!) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@tiptap/core": "https://esm.sh/@tiptap/core@^3.27.4",
+            "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@3.27.4"
+        }
+    }
+    </script>
+    <style>
+        /* ── Kezdőlap-szerkesztő oldal-specifikus stílusok ── */
+        .km-kartya {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; margin-bottom: 8px;
+            background: var(--bg-input); border: 1px solid var(--border);
+            border-radius: var(--radius-md); cursor: pointer; user-select: none;
+        }
+        .km-kartya:hover { background: var(--bg-card-hover); }
+        .km-kartya.active { border-color: var(--teal); background: var(--teal-dim); }
+        .km-kartya.km-inaktiv { opacity: 0.55; }
+        .km-kartya.km-drag-folott { border-top: 2px solid var(--gold); }
+        .km-kartya.km-drag-alatt { border-bottom: 2px solid var(--gold); }
+        .km-fogo { cursor: grab; color: var(--text-muted); font-size: 15px; flex-shrink: 0; }
+        .km-kartya-nev { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
+        .km-kartya-tipus { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+        .km-fix { border-style: dashed; }
+
+        .km-kapcsolo { position: relative; width: 34px; height: 19px; flex-shrink: 0; }
+        .km-kapcsolo input { opacity: 0; width: 0; height: 0; }
+        .km-kapcsolo span {
+            position: absolute; inset: 0; border-radius: 20px;
+            background: var(--border); transition: background .15s;
+        }
+        .km-kapcsolo span::before {
+            content: ''; position: absolute; left: 2px; top: 2px;
+            width: 15px; height: 15px; border-radius: 50%;
+            background: #fff; transition: transform .15s;
+        }
+        .km-kapcsolo input:checked + span { background: var(--green, #10b981); }
+        .km-kapcsolo input:checked + span::before { transform: translateX(15px); }
+
+        .km-mezo { margin-bottom: 14px; }
+        .km-mezo .input-label { display: block; margin-bottom: 5px; }
+        .km-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+
+        .km-kep-elonezet {
+            max-width: 260px; max-height: 130px; display: block;
+            margin-bottom: 8px; border-radius: 8px; border: 1px solid var(--border);
+            background: #fff; object-fit: contain;
+        }
+        .km-kep-elonezet--nincs {
+            width: 260px; height: 90px; display: flex; align-items: center; justify-content: center;
+            font-size: 12px; color: var(--text-muted); border-style: dashed;
+        }
+
+        .km-pin-lista { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+        .km-pin {
+            display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+            background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+        }
+        .km-pin img { width: 42px; height: 28px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+        .km-pin-cim { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .km-pin button {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-secondary); cursor: pointer; font-size: 11px;
+            padding: 2px 7px; line-height: 1.5; flex-shrink: 0;
+        }
+        .km-pin button:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+        .km-pont-doboz { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; margin-bottom: 10px; }
+        .km-pont-doboz h4 { font-size: 12px; color: var(--gold); margin-bottom: 8px; }
+
+        .km-modal-hatter {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 900; display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .km-modal {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg, 14px); width: 520px; max-width: 100%;
+            max-height: 80vh; display: flex; flex-direction: column;
+        }
+        .km-modal-fej { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .km-modal-fej h3 { font-size: 14px; }
+        .km-modal-lista { overflow-y: auto; padding: 10px 16px 16px; }
+        .km-modal-elem {
+            display: flex; align-items: center; gap: 10px; padding: 8px;
+            border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+        }
+        .km-modal-elem:hover { background: var(--bg-card-hover); border-color: var(--border); }
+        .km-modal-elem img { width: 56px; height: 36px; object-fit: cover; border-radius: 5px; flex-shrink: 0; background: var(--bg-input); }
+        .km-modal-elem.km-mar-benne { opacity: 0.4; pointer-events: none; }
+
+        .km-cache-sav {
+            display: none; margin: 0 0 14px; padding: 10px 14px;
+            background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.4);
+            border-radius: var(--radius-md); font-size: 12.5px; color: var(--gold);
+        }
+        .km-cache-sav.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="portal-layout">
+        <header class="navbar">
+            <div class="navbar-brand"><div class="navbar-title">🏠 Kezdőlap</div></div>
+            <div class="navbar-right" style="display:flex; gap:8px; align-items:center;">
+                <a class="btn btn-secondary btn-sm" href="https://travelpont.hu/" target="_blank" rel="noopener">🌐 Főoldal megnyitása</a>
+                <button class="btn btn-primary btn-sm" id="saveBtn">💾 Mentés</button>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <div class="km-cache-sav" id="cacheSav">
+                ⚠️ <strong>A mentés sikerült, de a látogatók még a régi oldalt láthatják!</strong>
+                A Cloudflare gyorsítótárát üríteni kell: Cloudflare → travelpont.hu →
+                Caching → „Purge Everything" (vagy csak a főoldal URL-jét). Enélkül akár
+                órákig a korábbi változat látszik.
+            </div>
+
+            <div class="crud-layout">
+                <!-- ---- Modul-lista panel ---- -->
+                <div class="card crud-list-panel">
+                    <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">
+                        Húzd a modulokat a sorrend módosításához, a kapcsolóval rejtheted el
+                        őket. Kattints egy modulra a szerkesztéshez.
+                    </p>
+                    <div id="modulLista"><p style="color:var(--text-muted); font-size:13px;">Betöltés…</p></div>
+                    <button class="btn btn-secondary btn-sm" id="ujSzabadBtn" style="width:100%; margin-top:10px;">➕ Szabad szekció hozzáadása</button>
+                </div>
+
+                <!-- ---- Szerkesztő panel ---- -->
+                <div class="card crud-editor" id="editorPanel">
+                    <div class="crud-editor-empty">Válassz egy modult a listából a szerkesztéshez.</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script type="module">
+        import { guardPage, apiCall, toast, safeFileName } from './js/auth-guard.js';
+        import { initSidebar } from './js/sidebar.js';
+        import { API_CONFIG } from './js/api-config.js';
+        import { auth, storage } from './js/firebase-config.js';
+        import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+
+        const PROXY = API_CONFIG.KEZDOLAP_PROXY_URL;
+
+        // A vászon-szerkesztő (Szabad szekcióhoz) — CDN-hibánál textarea-fallback.
+        let createVaszonSzerkeszto = null;
+        try {
+            ({ createVaszonSzerkeszto } = await import('./js/vaszon-szerkeszto.js'));
+        } catch (e) {
+            console.error('A vászon-szerkesztő nem tudott betölteni (CDN-hiba?):', e);
+        }
+
+        // ── Modul-katalógus ──────────────────────────────────────────────────
+        const MODUL_META = {
+            hero:      { ikon: '🎯', nev: 'Hero (nyitó blokk)',   tipusNev: 'főcím, alcím, gomb, hero-fotó' },
+            ajanlatok: { ikon: '✈️', nev: 'Kiemelt ajánlatok',    tipusNev: 'ajánlat-kártyák rácsa' },
+            uticelok:  { ikon: '🌍', nev: 'Úticélok',             tipusNev: 'ország-kártyák (sötét sáv)' },
+            miert_mi:  { ikon: '⭐', nev: 'Miért mi?',            tipusNev: '4 érv ikonokkal' },
+            utikalauz: { ikon: '📰', nev: 'Útikalauz',            tipusNev: 'legfrissebb blogcikkek' },
+            zaro_cta:  { ikon: '📣', nev: 'Záró CTA',             tipusNev: 'zárósáv + közösségi linkek' },
+            szabad:    { ikon: '🧩', nev: 'Szabad szekció',       tipusNev: 'vászon-szerkesztős tartalom' },
+        };
+
+        let config = null;
+        let selectedId = null;   // modul id vagy '_chrome'
+        let dirty = false;
+        let vaszon = null;       // az épp nyitott Szabad szekció szerkesztője
+        let ajanlatValaszto = null; // cache: [{id,title,thumbnail_url}]
+        let uticelValaszto = null;
+
+        function jelolModositast() {
+            if (!dirty) { dirty = true; frissitMentesGomb(); }
+        }
+        function frissitMentesGomb() {
+            const btn = document.getElementById('saveBtn');
+            btn.textContent = dirty ? '💾 Mentés (van mentetlen módosítás)' : '💾 Mentés';
+        }
+        window.addEventListener('beforeunload', e => {
+            if (dirty) { e.preventDefault(); e.returnValue = ''; }
+        });
+
+        function modulById(id) { return config.modulok.find(m => m.id === id); }
+
+        // A nyitott Szabad szekció vászon-tartalmának visszaírása a configba —
+        // modulváltás és mentés előtt KÖTELEZŐ hívni.
+        function syncSzabad() {
+            if (!vaszon || !selectedId) return;
+            const m = modulById(selectedId);
+            if (m && m.tipus === 'szabad') m.beallitasok.tartalom_html = vaszon.getHtml();
+        }
+
+        // ── Betöltés ─────────────────────────────────────────────────────────
+        async function loadConfig() {
+            try {
+                config = await apiCall(PROXY, { action: 'get' });
+                renderLista();
+                selectModul('_chrome');
+            } catch (e) {
+                document.getElementById('modulLista').innerHTML =
+                    `<p style="color:var(--red); font-size:13px;">Betöltési hiba: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c =>
+                ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+        }
+
+        // ── Modul-lista ──────────────────────────────────────────────────────
+        function renderLista() {
+            const c = document.getElementById('modulLista');
+            let html = `
+                <div class="km-kartya km-fix ${selectedId === '_chrome' ? 'active' : ''}" data-id="_chrome">
+                    <span style="width:15px; text-align:center; flex-shrink:0;">📌</span>
+                    <span class="km-kartya-nev">Fejléc és lábléc
+                        <span class="km-kartya-tipus">logó, menü-gomb — mindig látszik</span>
+                    </span>
+                </div>`;
+
+            html += config.modulok.map((m, i) => {
+                const meta = MODUL_META[m.tipus] || { ikon: '❓', nev: m.tipus, tipusNev: '' };
+                return `
+                <div class="km-kartya ${m.id === selectedId ? 'active' : ''} ${m.aktiv ? '' : 'km-inaktiv'}"
+                     data-id="${escapeHtml(m.id)}" data-idx="${i}" draggable="true">
+                    <span class="km-fogo" title="Húzd a sorrend módosításához">☰</span>
+                    <span style="flex-shrink:0;">${meta.ikon}</span>
+                    <span class="km-kartya-nev">${escapeHtml(meta.nev)}
+                        <span class="km-kartya-tipus">${escapeHtml(meta.tipusNev)}</span>
+                    </span>
+                    <label class="km-kapcsolo" title="${m.aktiv ? 'Látható — kattints az elrejtéshez' : 'Rejtett — kattints a megjelenítéshez'}">
+                        <input type="checkbox" data-toggle="${escapeHtml(m.id)}" ${m.aktiv ? 'checked' : ''}>
+                        <span></span>
+                    </label>
+                </div>`;
+            }).join('');
+
+            c.innerHTML = html;
+
+            c.querySelectorAll('.km-kartya').forEach(k => {
+                k.addEventListener('click', e => {
+                    if (e.target.closest('.km-kapcsolo')) return;
+                    selectModul(k.dataset.id);
+                });
+            });
+            c.querySelectorAll('input[data-toggle]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const m = modulById(cb.dataset.toggle);
+                    if (m) { m.aktiv = cb.checked; jelolModositast(); renderLista(); }
+                });
+            });
+
+            beallitDragDrop(c);
+        }
+
+        // ── Húzd-és-ejtsd sorrendezés (a blokk-szerkesztő bevált mintája) ────
+        function beallitDragDrop(container) {
+            let huzottIdx = null;
+
+            container.querySelectorAll('.km-kartya[draggable="true"]').forEach(k => {
+                k.addEventListener('dragstart', e => {
+                    huzottIdx = parseInt(k.dataset.idx, 10);
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                k.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    const r = k.getBoundingClientRect();
+                    const ele = e.clientY < r.top + r.height / 2;
+                    k.classList.toggle('km-drag-folott', ele);
+                    k.classList.toggle('km-drag-alatt', !ele);
+                });
+                k.addEventListener('dragleave', () => k.classList.remove('km-drag-folott', 'km-drag-alatt'));
+                k.addEventListener('drop', e => {
+                    e.preventDefault();
+                    const celIdx = parseInt(k.dataset.idx, 10);
+                    const r = k.getBoundingClientRect();
+                    const ele = e.clientY < r.top + r.height / 2;
+                    k.classList.remove('km-drag-folott', 'km-drag-alatt');
+                    if (huzottIdx === null || huzottIdx === celIdx) return;
+
+                    const [mozgo] = config.modulok.splice(huzottIdx, 1);
+                    let uj = celIdx + (ele ? 0 : 1);
+                    if (huzottIdx < celIdx) uj -= 1;
+                    config.modulok.splice(uj, 0, mozgo);
+                    huzottIdx = null;
+                    jelolModositast();
+                    renderLista();
+                });
+            });
+        }
+
+        // ── Modul kiválasztása + szerkesztő renderelése ──────────────────────
+        function selectModul(id) {
+            syncSzabad();
+            if (vaszon) { vaszon.destroy(); vaszon = null; }
+            selectedId = id;
+            renderLista();
+            renderEditor();
+        }
+
+        function mezo(label, inner, hint = '') {
+            return `<div class="km-mezo">
+                <label class="input-label">${label}</label>
+                ${inner}
+                ${hint ? `<div class="km-hint">${hint}</div>` : ''}
+            </div>`;
+        }
+        function szovegMezo(kulcs, ertek, label, hint = '') {
+            return mezo(label, `<input type="text" class="input-field" data-key="${kulcs}" value="${escapeHtml(ertek)}">`, hint);
+        }
+        function teruletMezo(kulcs, ertek, label, sorok = 3, hint = '') {
+            return mezo(label, `<textarea class="input-field" data-key="${kulcs}" rows="${sorok}">${escapeHtml(ertek)}</textarea>`, hint);
+        }
+
+        function kepMezoHtml(cel, url, label, hint) {
+            const kep = url
+                ? `<img class="km-kep-elonezet" src="${escapeHtml(url)}" alt="">`
+                : `<div class="km-kep-elonezet km-kep-elonezet--nincs">nincs kép — a beépített helykitöltő látszik</div>`;
+            return `<div class="km-mezo">
+                <label class="input-label">${label}</label>
+                ${kep}
+                <input type="file" accept="image/*" data-kep-cel="${cel}" style="font-size:12px;">
+                <div class="km-hint">${hint}</div>
+            </div>`;
+        }
+
+        // ── Szerkesztő űrlapok modulonként ───────────────────────────────────
+        function renderEditor() {
+            const p = document.getElementById('editorPanel');
+
+            if (selectedId === '_chrome') {
+                const ch = config.chrome;
+                p.innerHTML = `
+                    <h3 style="margin-bottom:14px;">📌 Fejléc és lábléc</h3>
+                    ${kepMezoHtml('logo', ch.logo_url, 'Logó',
+                        'Szorosan körbevágott, átlátszó hátterű PNG a legjobb. Üresen hagyva a repülős CSS-jelvény látszik.')}
+                    ${szovegMezo('chrome.nav_cta_szoveg', ch.nav_cta_szoveg, 'Fejléc gomb szövege')}
+                    <div class="km-hint">A menüpontok (Ajánlatok, Úticélok, Útikalauz, Rólunk, Kapcsolat)
+                    automatikusak: akkor jelennek meg, ha a hozzájuk tartozó oldal létezik a WordPressben.
+                    A lábléc szövege a plugin része.</div>`;
+                kossEsemenyeket(p);
+                return;
+            }
+
+            const m = modulById(selectedId);
+            if (!m) { p.innerHTML = '<div class="crud-editor-empty">Válassz egy modult.</div>'; return; }
+            const b = m.beallitasok;
+            const meta = MODUL_META[m.tipus];
+            let html = `<h3 style="margin-bottom:14px;">${meta.ikon} ${escapeHtml(meta.nev)}</h3>`;
+
+            if (!m.aktiv) {
+                html += `<div class="km-cache-sav show" style="margin-bottom:14px;">Ez a modul most <strong>rejtett</strong> — a főoldalon nem jelenik meg, de a beállításai megmaradnak.</div>`;
+            }
+
+            switch (m.tipus) {
+                case 'hero':
+                    html += szovegMezo('badge_szoveg', b.badge_szoveg, 'Kis jelvény-szöveg (a cím fölött)');
+                    html += mezo('Főcím',
+                        `<textarea class="input-field" data-key="cim" rows="2">${escapeHtml(b.cim)}</textarea>
+                         <button type="button" class="btn btn-secondary btn-sm" id="kiemelesBtn" style="margin-top:6px;">✨ Kijelölt szó kiemelése</button>`,
+                        'Jelöld ki a kiemelendő szót a szövegben, majd kattints a gombra — sárga kiemelést kap a főoldalon.');
+                    html += teruletMezo('alcim', b.alcim, 'Alcím', 3);
+                    html += szovegMezo('cta_szoveg', b.cta_szoveg, 'Gomb szövege');
+                    html += szovegMezo('megjegyzes', b.megjegyzes, 'Apró megjegyzés a gomb mellett');
+                    html += kepMezoHtml('hero', b.hero_kep_url, 'Hero-fotó', 'Fekvő tájolású fotó ajánlott. Üresen hagyva a csíkos helykitöltő látszik.');
+                    break;
+
+                case 'ajanlatok':
+                case 'uticelok': {
+                    const tobb = m.tipus === 'ajanlatok';
+                    html += szovegMezo('eyebrow', b.eyebrow, 'Kis felcím (eyebrow)');
+                    html += szovegMezo('cim', b.cim, 'Szekció címsora');
+                    if (tobb) html += szovegMezo('link_szoveg', b.link_szoveg, '„Összes" link felirata');
+                    html += mezo('Válogatás módja', `
+                        <select class="input-field" data-key="valogatas">
+                            <option value="auto" ${b.valogatas !== 'kezi' ? 'selected' : ''}>Automatikus — ${tobb ? 'legfrissebb, nem lejárt ajánlatok' : 'országok a beállított sorrendben'}</option>
+                            <option value="kezi" ${b.valogatas === 'kezi' ? 'selected' : ''}>Kézi kiválasztás — te döntöd el, mi kerüljön ki</option>
+                        </select>`);
+                    html += mezo('Hány kártya jelenjen meg? (automatikus módban)', `
+                        <select class="input-field" data-key="darab">
+                            ${(tobb ? [3, 6, 9] : [3, 6]).map(n =>
+                                `<option value="${n}" ${Number(b.darab) === n ? 'selected' : ''}>${n}</option>`).join('')}
+                        </select>`);
+                    html += `<div id="pinDoboz" style="display:${b.valogatas === 'kezi' ? 'block' : 'none'};">
+                        <label class="input-label">Kiválasztott ${tobb ? 'ajánlatok' : 'úticélok'} (a sorrend = megjelenési sorrend)</label>
+                        <div class="km-pin-lista" id="pinLista"></div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="pinHozzaad" style="margin-top:8px;">➕ Hozzáadás</button>
+                        ${tobb ? '<div class="km-hint">A lejárt ajánlat automatikusan lekerül a főoldalról akkor is, ha itt szerepel.</div>' : ''}
+                    </div>`;
+                    html += szovegMezo('ures_szoveg', b.ures_szoveg, `Szöveg, ha nincs megjeleníthető ${tobb ? 'ajánlat' : 'úticél'}`);
+                    break;
+                }
+
+                case 'miert_mi': {
+                    html += szovegMezo('eyebrow', b.eyebrow, 'Kis felcím (eyebrow)');
+                    html += szovegMezo('cim', b.cim, 'Szekció címsora');
+                    const ikonok = [
+                        ['circle', '● kör'], ['square', '■ négyzet'], ['loader', '⟳ frissülés'], ['bag', '👜 táska'],
+                    ];
+                    b.pontok.forEach((pont, i) => {
+                        html += `<div class="km-pont-doboz">
+                            <h4>${i + 1}. pont</h4>
+                            ${szovegMezo(`pontok.${i}.title`, pont.title, 'Cím')}
+                            ${teruletMezo(`pontok.${i}.text`, pont.text, 'Szöveg', 2)}
+                            ${mezo('Ikon', `<select class="input-field" data-key="pontok.${i}.ikon">
+                                ${ikonok.map(([v, l]) => `<option value="${v}" ${pont.ikon === v ? 'selected' : ''}>${l}</option>`).join('')}
+                            </select>`)}
+                        </div>`;
+                    });
+                    break;
+                }
+
+                case 'utikalauz':
+                    html += szovegMezo('eyebrow', b.eyebrow, 'Kis felcím (eyebrow)');
+                    html += szovegMezo('cim', b.cim, 'Szekció címsora');
+                    html += szovegMezo('link_szoveg', b.link_szoveg, '„Összes cikk" link felirata');
+                    html += mezo('Hány cikk jelenjen meg?', `
+                        <select class="input-field" data-key="darab">
+                            ${[3, 6].map(n => `<option value="${n}" ${Number(b.darab) === n ? 'selected' : ''}>${n}</option>`).join('')}
+                        </select>`, 'Mindig a legfrissebb cikkek. Ha nincs egy cikk sem, a szekció magától elrejtőzik.');
+                    break;
+
+                case 'zaro_cta':
+                    html += szovegMezo('cim', b.cim, 'Cím');
+                    html += szovegMezo('alcim', b.alcim, 'Alcím');
+                    html += szovegMezo('gomb_szoveg', b.gomb_szoveg, 'Gomb szövege');
+                    html += szovegMezo('instagram_link', b.instagram_link, 'Instagram URL', 'Üresen hagyva az ikon nem jelenik meg.');
+                    html += szovegMezo('facebook_link', b.facebook_link, 'Facebook URL', 'Üresen hagyva az ikon nem jelenik meg.');
+                    break;
+
+                case 'szabad':
+                    html += mezo('Háttér', `
+                        <select class="input-field" data-key="hatter">
+                            <option value="vilagos" ${b.hatter !== 'sotet' ? 'selected' : ''}>Világos</option>
+                            <option value="sotet" ${b.hatter === 'sotet' ? 'selected' : ''}>Sötét</option>
+                        </select>`);
+                    html += `<div class="km-mezo">
+                        <label class="input-label">Tartalom</label>
+                        <div id="szabadVaszon"></div>
+                        <div class="km-hint">Szöveg, kiemelés-doboz, GYIK, videó, térkép, CTA-gomb és
+                        ajánlat/úticél-kártya widgetek használhatók. Kép-widget itt egyelőre nem
+                        elérhető (nincs galéria-forrás — az úticél-oldalakon továbbra is van).</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="szabadTorles" style="border-color:rgba(239,68,68,0.4); color:#f87171;">🗑️ Szekció törlése</button>`;
+                    break;
+            }
+
+            p.innerHTML = html;
+            kossEsemenyeket(p);
+
+            if (m.tipus === 'szabad') inditSzabadSzerkeszto(m);
+            if (m.tipus === 'ajanlatok' || m.tipus === 'uticelok') renderPinLista(m);
+        }
+
+        // ── Mező-változások visszaírása a configba (dot-path) ────────────────
+        function setDeep(obj, path, value) {
+            const reszek = path.split('.');
+            let cur = obj;
+            for (let i = 0; i < reszek.length - 1; i++) cur = cur[reszek[i]];
+            cur[reszek[reszek.length - 1]] = value;
+        }
+
+        function kossEsemenyeket(panel) {
+            panel.querySelectorAll('[data-key]').forEach(el => {
+                el.addEventListener('input', () => {
+                    const kulcs = el.dataset.key;
+                    let ertek = el.value;
+                    if (el.dataset.key === 'darab') ertek = parseInt(ertek, 10);
+                    if (kulcs.startsWith('chrome.')) {
+                        setDeep(config, kulcs, ertek);
+                    } else {
+                        setDeep(modulById(selectedId).beallitasok, kulcs, ertek);
+                    }
+                    jelolModositast();
+                });
+                if (el.tagName === 'SELECT') el.addEventListener('change', () => {
+                    if (el.dataset.key === 'valogatas') {
+                        const doboz = document.getElementById('pinDoboz');
+                        if (doboz) doboz.style.display = el.value === 'kezi' ? 'block' : 'none';
+                    }
+                });
+            });
+
+            panel.querySelectorAll('input[data-kep-cel]').forEach(inp => {
+                inp.addEventListener('change', () => kepFeltoltes(inp));
+            });
+
+            const kiemeles = panel.querySelector('#kiemelesBtn');
+            if (kiemeles) kiemeles.addEventListener('click', kiemeltSzo);
+
+            const pinBtn = panel.querySelector('#pinHozzaad');
+            if (pinBtn) pinBtn.addEventListener('click', () => nyisdValaszto(modulById(selectedId)));
+
+            const torles = panel.querySelector('#szabadTorles');
+            if (torles) torles.addEventListener('click', () => {
+                if (!confirm('Biztosan törlöd ezt a szabad szekciót? A tartalma elvész.')) return;
+                if (vaszon) { vaszon.destroy(); vaszon = null; }
+                config.modulok = config.modulok.filter(x => x.id !== selectedId);
+                selectedId = '_chrome';
+                jelolModositast();
+                renderLista();
+                renderEditor();
+            });
+        }
+
+        // ── Hero főcím: kijelölt szó kiemelése span-nel ──────────────────────
+        function kiemeltSzo() {
+            const ta = document.querySelector('textarea[data-key="cim"]');
+            if (!ta) return;
+            const { selectionStart: s, selectionEnd: e, value: v } = ta;
+            if (s === e) { toast('Előbb jelöld ki a kiemelendő szót a főcímben.', 'info'); return; }
+            const uj = v.slice(0, s) + '<span class="tpk-accent-word">' + v.slice(s, e) + '</span>' + v.slice(e);
+            ta.value = uj;
+            setDeep(modulById(selectedId).beallitasok, 'cim', uj);
+            jelolModositast();
+        }
+
+        // ── Kép-feltöltés: Storage → sideload → attachment ID a configba ─────
+        async function kepFeltoltes(inp) {
+            const file = inp.files && inp.files[0];
+            if (!file) return;
+            const cel = inp.dataset.kepCel; // 'logo' | 'hero'
+            inp.disabled = true;
+            toast('Kép feltöltése…', 'info');
+            try {
+                const uid = auth.currentUser.uid;
+                const utvonal = `kezdolap/${uid}/${Date.now()}_${safeFileName(file.name)}`;
+                const r = ref(storage, utvonal);
+                await uploadBytes(r, file);
+                const url = await getDownloadURL(r);
+
+                const valasz = await apiCall(PROXY, { action: 'sideload', body: { url, cel } });
+
+                if (cel === 'logo') {
+                    config.chrome.logo_kep_id = valasz.attachment_id;
+                    config.chrome.logo_url = valasz.url;
+                } else {
+                    const hero = config.modulok.find(x => x.tipus === 'hero');
+                    hero.beallitasok.hero_kep_id = valasz.attachment_id;
+                    hero.beallitasok.hero_kep_url = valasz.url;
+                }
+                jelolModositast();
+                renderEditor();
+                toast('Kép feltöltve — a Mentés gombbal véglegesítsd!', 'success');
+            } catch (e) {
+                console.error(e);
+                toast('Feltöltési hiba: ' + e.message, 'error');
+                inp.disabled = false;
+            }
+        }
+
+        // ── Kézi kiválasztás: lista + választó modal ─────────────────────────
+        function renderPinLista(m) {
+            const c = document.getElementById('pinLista');
+            if (!c) return;
+            const b = m.beallitasok;
+            const adatok = b.kivalasztott || [];
+
+            if (!b.kivalasztott_idk.length) {
+                c.innerHTML = '<div class="km-hint">Még nincs kiválasztva semmi — a „Hozzáadás" gombbal válogass.</div>';
+                return;
+            }
+
+            c.innerHTML = b.kivalasztott_idk.map((id, i) => {
+                const a = adatok.find(x => x.id === id) || { title: `#${id}`, thumbnail_url: '' };
+                return `<div class="km-pin">
+                    ${a.thumbnail_url ? `<img src="${escapeHtml(a.thumbnail_url)}" alt="">` : ''}
+                    <span class="km-pin-cim">${escapeHtml(a.title)}${a.status === 'draft' ? ' <em style="color:var(--gold);">(vázlat!)</em>' : ''}</span>
+                    <button type="button" data-pin-fel="${i}" title="Előrébb">↑</button>
+                    <button type="button" data-pin-le="${i}" title="Hátrébb">↓</button>
+                    <button type="button" data-pin-torol="${i}" title="Eltávolítás">×</button>
+                </div>`;
+            }).join('');
+
+            c.querySelectorAll('[data-pin-fel]').forEach(bt => bt.addEventListener('click', () => {
+                const i = +bt.dataset.pinFel;
+                if (i > 0) {
+                    [b.kivalasztott_idk[i - 1], b.kivalasztott_idk[i]] = [b.kivalasztott_idk[i], b.kivalasztott_idk[i - 1]];
+                    jelolModositast(); renderPinLista(m);
+                }
+            }));
+            c.querySelectorAll('[data-pin-le]').forEach(bt => bt.addEventListener('click', () => {
+                const i = +bt.dataset.pinLe;
+                if (i < b.kivalasztott_idk.length - 1) {
+                    [b.kivalasztott_idk[i + 1], b.kivalasztott_idk[i]] = [b.kivalasztott_idk[i], b.kivalasztott_idk[i + 1]];
+                    jelolModositast(); renderPinLista(m);
+                }
+            }));
+            c.querySelectorAll('[data-pin-torol]').forEach(bt => bt.addEventListener('click', () => {
+                b.kivalasztott_idk.splice(+bt.dataset.pinTorol, 1);
+                jelolModositast(); renderPinLista(m);
+            }));
+        }
+
+        async function valasztoLista(tipus) {
+            if (tipus === 'ajanlatok') {
+                if (!ajanlatValaszto) {
+                    const d = await apiCall(API_CONFIG.AJANLAT_PROXY_URL, { action: 'list', extraQuery: { status: 'publish', per_page: 200 } });
+                    ajanlatValaszto = (d.items || []).map(it => ({ id: it.id, title: it.title || '(cím nélkül)', thumbnail_url: it.thumbnail_url || '', status: it.status }));
+                }
+                return ajanlatValaszto;
+            }
+            if (!uticelValaszto) {
+                const d = await apiCall(API_CONFIG.UTICEL_PROXY_URL, { action: 'list', extraQuery: { status: 'publish', per_page: 200, parent: 0 } });
+                uticelValaszto = (d.items || []).map(it => ({ id: it.id, title: it.title || '(cím nélkül)', thumbnail_url: it.thumbnail_url || '', status: it.status }));
+            }
+            return uticelValaszto;
+        }
+
+        async function nyisdValaszto(m) {
+            let lista;
+            try {
+                lista = await valasztoLista(m.tipus);
+            } catch (e) {
+                toast('A lista betöltése nem sikerült: ' + e.message, 'error'); return;
+            }
+            const b = m.beallitasok;
+
+            const hatter = document.createElement('div');
+            hatter.className = 'km-modal-hatter';
+            hatter.innerHTML = `
+                <div class="km-modal">
+                    <div class="km-modal-fej">
+                        <h3>${m.tipus === 'ajanlatok' ? '✈️ Ajánlat' : '🌍 Úticél'} kiválasztása</h3>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bezar>✕</button>
+                    </div>
+                    <div class="km-modal-lista">
+                        ${lista.length ? lista.map(a => `
+                            <div class="km-modal-elem ${b.kivalasztott_idk.includes(a.id) ? 'km-mar-benne' : ''}" data-valaszt="${a.id}">
+                                <img src="${escapeHtml(a.thumbnail_url)}" alt="" onerror="this.style.visibility='hidden'">
+                                <span style="font-size:13px;">${escapeHtml(a.title)}</span>
+                            </div>`).join('') : '<p style="font-size:13px; color:var(--text-muted);">Nincs választható elem.</p>'}
+                    </div>
+                </div>`;
+            document.body.appendChild(hatter);
+
+            const bezar = () => hatter.remove();
+            hatter.addEventListener('click', e => { if (e.target === hatter) bezar(); });
+            hatter.querySelector('[data-bezar]').addEventListener('click', bezar);
+
+            hatter.querySelectorAll('[data-valaszt]').forEach(el => el.addEventListener('click', () => {
+                const id = +el.dataset.valaszt;
+                if (b.kivalasztott_idk.includes(id)) return;
+                b.kivalasztott_idk.push(id);
+                const adat = lista.find(x => x.id === id);
+                b.kivalasztott = b.kivalasztott || [];
+                if (adat) b.kivalasztott.push(adat);
+                jelolModositast();
+                renderPinLista(m);
+                el.classList.add('km-mar-benne');
+            }));
+        }
+
+        // ── Szabad szekció: vászon-szerkesztő indítása ───────────────────────
+        let ajanlatWidgetCache = null;
+        async function widgetAjanlatProvider() {
+            if (!ajanlatWidgetCache) {
+                const d = await apiCall(API_CONFIG.AJANLAT_PROXY_URL, { action: 'list', extraQuery: { status: 'publish', per_page: 200 } });
+                ajanlatWidgetCache = (d.items || []).map(it => ({ id: it.id, cim: it.title || '(cím nélkül)', kep: it.thumbnail_url || '' }));
+            }
+            return ajanlatWidgetCache;
+        }
+        let uticelWidgetCache = null;
+        async function widgetUticelProvider() {
+            if (!uticelWidgetCache) {
+                const d = await apiCall(API_CONFIG.UTICEL_PROXY_URL, { action: 'meta' });
+                uticelWidgetCache = (d.uticelok || []).filter(u => u.status === 'publish')
+                    .map(u => ({ id: u.id, cim: u.title || '(cím nélkül)', kep: '' }));
+            }
+            return uticelWidgetCache;
+        }
+
+        function inditSzabadSzerkeszto(m) {
+            const b = m.beallitasok;
+            if (createVaszonSzerkeszto) {
+                vaszon = createVaszonSzerkeszto({
+                    containerId: 'szabadVaszon',
+                    initialHtml: b.tartalom_html || '',
+                    galeriaProvider: () => [],
+                    onChange: jelolModositast,
+                    onUzenet: uzenet => toast(uzenet, 'info'),
+                    ajanlatProvider: widgetAjanlatProvider,
+                    uticelProvider: widgetUticelProvider,
+                });
+            } else {
+                const c = document.getElementById('szabadVaszon');
+                c.innerHTML = `
+                    <div class="km-hint" style="margin-bottom:6px;">⚠️ A vizuális szerkesztő nem tudott betölteni — egyszerű HTML-nézetben szerkesztesz.</div>
+                    <textarea class="input-field" style="min-height:220px;"></textarea>`;
+                const ta = c.querySelector('textarea');
+                ta.value = b.tartalom_html || '';
+                ta.addEventListener('input', () => { b.tartalom_html = ta.value; jelolModositast(); });
+                vaszon = { getHtml: () => ta.value, destroy: () => {} };
+            }
+        }
+
+        // ── Új szabad szekció ────────────────────────────────────────────────
+        document.getElementById('ujSzabadBtn').addEventListener('click', () => {
+            const id = 'szabad_' + Math.random().toString(36).slice(2, 8);
+            config.modulok.push({
+                tipus: 'szabad', id, aktiv: true,
+                beallitasok: { hatter: 'vilagos', tartalom_html: '' },
+            });
+            jelolModositast();
+            selectModul(id);
+        });
+
+        // ── Mentés ───────────────────────────────────────────────────────────
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            syncSzabad();
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Mentés…';
+            try {
+                const valasz = await apiCall(PROXY, { action: 'save', body: config, method: 'POST' });
+                config = valasz;
+                dirty = false;
+                toast('Kezdőlap elmentve! ✅', 'success');
+                document.getElementById('cacheSav').classList.add('show');
+                renderLista();
+                renderEditor();
+            } catch (e) {
+                console.error(e);
+                toast('Mentési hiba: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                frissitMentesGomb();
+            }
+        });
+
+        // ── Indítás ──────────────────────────────────────────────────────────
+        guardPage(user => {
+            initSidebar(user);
+            loadConfig();
+        });
+    </script>
+</body>
+</html>

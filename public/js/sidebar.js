@@ -13,6 +13,7 @@ const SIDEBAR_W = '220px';
 
 // EGYETLEN IGAZSÁGFORRÁS a menüpontokra – új modulnál csak ide kell felvenni.
 export const NAV_ITEMS = [
+    { href: 'kezdolap.html',  icon: '🏠', label: 'Kezdőlap',  match: '/kezdolap' },
     { href: 'ajanlatok.html', icon: '✈️', label: 'Ajánlatok', match: '/ajanlatok' },
     { href: 'uticelok.html',  icon: '🌍', label: 'Úticélok',  match: '/uticelok' },
     { href: 'ai-muhely.html', icon: '✨', label: 'AI Műhely', match: '/ai-muhely' },

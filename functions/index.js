@@ -352,6 +352,30 @@ exports.blogProxy = onRequest(
 );
 
 // =====================================================
+// 5/b. Kezdőlap proxy – TPK REST API (singleton erőforrás, nincs id)
+// GET/POST /kezdolapProxy?action=get|save|sideload|status
+// A főoldal modul-konfigurációját (tpk_modulok opció) olvassa/menti.
+// =====================================================
+exports.kezdolapProxy = onRequest(
+    { region: 'europe-west1', timeoutSeconds: 60, memory: '256MiB',
+      secrets: [wpUser, wpPassword], invoker: 'public' },
+    (req, res) => runWpProxy(req, res, (action, id, req) => {
+        switch (action) {
+            case 'get':
+                return { url: `${WP_BASE}/tpk/v1/kezdolap`, method: 'GET' };
+            case 'save':
+                return { url: `${WP_BASE}/tpk/v1/kezdolap`, method: 'PUT', body: JSON.stringify(req.body) };
+            case 'sideload':
+                return { url: `${WP_BASE}/tpk/v1/kezdolap/kep`, method: 'POST', body: JSON.stringify(req.body) };
+            case 'status':
+                return { url: `${WP_BASE}/tpk/v1/status`, method: 'GET' };
+            default:
+                return null;
+        }
+    })
+);
+
+// =====================================================
 // 6. AI Műhely agent – Claude (Anthropic) NDJSON streaminggel
 // POST /aiAgent  body: { messages: [...], ajanlatok?: bool,
 //                        parent_context?: { id, cim } }
