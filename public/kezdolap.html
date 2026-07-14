@@ -109,6 +109,29 @@
         .km-megj-szakasz { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 14px; }
         .km-megj-szakasz h4 { font-size: 12.5px; color: var(--gold); margin-bottom: 10px; }
 
+        .km-szin-sor { display: flex; align-items: center; gap: 10px; }
+        .km-szin-sor input[type="color"] {
+            width: 44px; height: 30px; padding: 2px; border: 1px solid var(--border);
+            border-radius: 6px; background: var(--bg-input); cursor: pointer;
+        }
+        .km-ikon-elonezet {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; background: #fff; border-radius: 8px;
+            font-size: 20px; flex-shrink: 0;
+        }
+        .km-ikon-elonezet img { width: 24px; height: 24px; }
+        .km-ikon-racs {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+            gap: 8px; margin-bottom: 12px;
+        }
+        .km-ikon-racs button {
+            display: flex; align-items: center; justify-content: center;
+            height: 48px; background: #fff; border: 2px solid transparent;
+            border-radius: 8px; cursor: pointer; font-size: 20px;
+        }
+        .km-ikon-racs button:hover { border-color: var(--teal); }
+        .km-ikon-racs img { width: 26px; height: 26px; }
+
         .km-elonezet-hatter {
             position: fixed; inset: 0; background: rgba(0,0,0,0.78);
             z-index: 950; display: flex; flex-direction: column;
@@ -246,6 +269,12 @@
                     <span class="km-kartya-nev">Fejléc és lábléc
                         <span class="km-kartya-tipus">logó, menü-gomb — mindig látszik</span>
                     </span>
+                </div>
+                <div class="km-kartya km-fix ${selectedId === '_stilus' ? 'active' : ''}" data-id="_stilus">
+                    <span style="width:15px; text-align:center; flex-shrink:0;">🎨</span>
+                    <span class="km-kartya-nev">Stílus — márka-színek
+                        <span class="km-kartya-tipus">az egész oldalra hat (gombok, sávok)</span>
+                    </span>
                 </div>`;
 
             html += config.modulok.map((m, i) => {
@@ -363,16 +392,38 @@
                 [['kivagas', 'Kivágás — kitölti a keretet (a kép széle levágódhat)'],
                  ['teljes', 'Teljes kép 16:9 — semmi nem vágódik le']],
                 'A feliratos borítóképeidhez a „Teljes kép" való.');
+            const betuValaszto = () => megjSelect('betumeret', g.betumeret || 'normal', 'Betűméret',
+                [['kisebb', 'Kisebb'], ['normal', 'Normál'], ['nagyobb', 'Nagyobb']],
+                'A szekció címsorát és szövegeit arányosan méretezi — mobilon is jól törik.');
+            const hatterValaszto = (lista, label = 'Szekció háttere') => {
+                let h = megjSelect('hatter', g.hatter, label,
+                    hatterOpciok(lista).concat([['egyeni', '🎨 Egyéni szín…']]));
+                h += `<div data-egyeni-doboz style="display:${g.hatter === 'egyeni' ? 'block' : 'none'};
+                        border-left:2px solid var(--border); padding-left:12px; margin-bottom:14px;">
+                    ${mezo('Egyéni háttérszín', `<div class="km-szin-sor"><input type="color" data-key="megjelenes.hatter_szin" value="${g.hatter_szin || '#FFFFFF'}"></div>`)}
+                    ${megjSelect('szoveg_szin', g.szoveg_szin || 'auto', 'Szövegszín ezen a háttéren',
+                        [['auto', 'Automatikus (marad a mostani)'],
+                         ['sotet', 'Sötét szöveg — világos háttérhez'],
+                         ['vilagos', 'Világos szöveg — sötét háttérhez']])}
+                </div>`;
+                return h;
+            };
 
             switch (m.tipus) {
                 case 'hero':
                     s += kepValaszto('kep_illesztes', 'Hero-fotó illesztése');
-                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['kek', 'feher', 'vilagos']));
+                    s += megjSelect('kep_oldal', g.kep_oldal || 'jobb', 'Fotó elhelyezése',
+                        [['jobb', 'Kép jobbra, szöveg balra (mostani)'], ['bal', 'Kép balra, szöveg jobbra']]);
+                    s += megjSelect('cim_meret', g.cim_meret || 'normal', 'Főcím mérete',
+                        [['kisebb', 'Kisebb'], ['normal', 'Normál'], ['nagyobb', 'Nagyobb']]);
+                    s += betuValaszto();
+                    s += hatterValaszto(['kek', 'feher', 'vilagos']);
                     break;
                 case 'ajanlatok':
                     s += kepValaszto('kep_arany', 'Kártya-képek illesztése');
                     s += megjSelect('oszlopok', g.oszlopok, 'Oszlopok száma', [[2, '2 oszlop (nagyobb kártyák)'], [3, '3 oszlop']]);
-                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['feher', 'kek', 'vilagos']));
+                    s += betuValaszto();
+                    s += hatterValaszto(['feher', 'kek', 'vilagos']);
                     break;
                 case 'uticelok':
                     s += megjSelect('stilus', g.stilus, 'Kártya-stílus',
@@ -381,18 +432,22 @@
                          ['kartya', 'Kártya — kép felül 16:9, szöveg alatta (nem vág)']],
                         'A „nem vág" stílusokban a feliratos borítóképeid teljes egészében látszanak.');
                     s += megjSelect('oszlopok', g.oszlopok, 'Oszlopok száma', [[2, '2 oszlop'], [3, '3 oszlop'], [4, '4 oszlop (kisebb csempék)']]);
-                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['sotet', 'feher', 'kek']));
+                    s += betuValaszto();
+                    s += hatterValaszto(['sotet', 'feher', 'kek']);
                     break;
                 case 'miert_mi':
-                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['feher', 'kek', 'vilagos']));
+                    s += betuValaszto();
+                    s += hatterValaszto(['feher', 'kek', 'vilagos']);
                     break;
                 case 'utikalauz':
                     s += kepValaszto('kep_arany', 'Cikk-képek illesztése');
                     s += megjSelect('oszlopok', g.oszlopok, 'Oszlopok száma', [[2, '2 oszlop'], [3, '3 oszlop']]);
-                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['vilagos', 'feher', 'kek']));
+                    s += betuValaszto();
+                    s += hatterValaszto(['vilagos', 'feher', 'kek']);
                     break;
                 case 'zaro_cta':
-                    s += megjSelect('hatter', g.hatter, 'Sáv háttere', hatterOpciok(['sotet', 'bezs']));
+                    s += betuValaszto();
+                    s += hatterValaszto(['sotet', 'bezs'], 'Sáv háttere');
                     break;
             }
             if (!s) return '';
@@ -412,9 +467,58 @@
             </div>`;
         }
 
+        // ── 🎨 Stílus (globális márka-paletta) ───────────────────────────────
+        const PALETTA = [
+            ['sotet',     'Sötét alapszín (Úticélok-sáv, záró sáv, sötét gombok)', '#54595F'],
+            ['accent',    'Kiemelő szín (sárga gombok, hangsúlyok)',               '#F2CB4E'],
+            ['secondary', 'Másodlagos szín (kis felcímek, bézs)',                  '#A98F6B'],
+            ['bg_kek',    'Világoskék háttér (hero szekció)',                      '#E6F1FB'],
+            ['bg_bezs',   'Világos bézs háttér (Útikalauz-sáv)',                   '#F7F5F1'],
+            ['szoveg',    'Alap szövegszín',                                        '#3A3D42'],
+        ];
+
+        function renderStilusEditor(p) {
+            config.stilus = config.stilus || {};
+            const sorok = PALETTA.map(([kulcs, nev, gyari]) => {
+                const ertek = config.stilus[kulcs] || '';
+                return `<div class="km-mezo">
+                    <label class="input-label">${nev}</label>
+                    <div class="km-szin-sor">
+                        <input type="color" data-paletta="${kulcs}" value="${ertek || gyari}">
+                        <span class="km-hint" style="margin:0;">${ertek ? 'egyéni: ' + ertek : 'gyári: ' + gyari}</span>
+                        ${ertek ? `<button type="button" class="btn btn-secondary btn-sm" data-paletta-gyari="${kulcs}">↩︎ Gyári</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+
+            p.innerHTML = `
+                <h3 style="margin-bottom:6px;">🎨 Stílus — márka-színek</h3>
+                <p class="km-hint" style="margin-bottom:16px;">Ezek a színek az EGÉSZ főoldalra hatnak:
+                minden gomb, sáv és címsor együtt, összhangban változik. A 👁️ Előnézettel
+                mentés nélkül kipróbálhatod.</p>
+                ${sorok}`;
+
+            p.querySelectorAll('input[data-paletta]').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    config.stilus[inp.dataset.paletta] = inp.value;
+                    jelolModositast();
+                });
+                inp.addEventListener('change', () => renderStilusEditor(p));
+            });
+            p.querySelectorAll('[data-paletta-gyari]').forEach(bt => {
+                bt.addEventListener('click', () => {
+                    config.stilus[bt.dataset.palettaGyari] = '';
+                    jelolModositast();
+                    renderStilusEditor(p);
+                });
+            });
+        }
+
         // ── Szerkesztő űrlapok modulonként ───────────────────────────────────
         function renderEditor() {
             const p = document.getElementById('editorPanel');
+
+            if (selectedId === '_stilus') { renderStilusEditor(p); return; }
 
             if (selectedId === '_chrome') {
                 const ch = config.chrome;
@@ -482,17 +586,15 @@
                 case 'miert_mi': {
                     html += szovegMezo('eyebrow', b.eyebrow, 'Kis felcím (eyebrow)');
                     html += szovegMezo('cim', b.cim, 'Szekció címsora');
-                    const ikonok = [
-                        ['circle', '● kör'], ['square', '■ négyzet'], ['loader', '⟳ frissülés'], ['bag', '👜 táska'],
-                    ];
                     b.pontok.forEach((pont, i) => {
                         html += `<div class="km-pont-doboz">
                             <h4>${i + 1}. pont</h4>
                             ${szovegMezo(`pontok.${i}.title`, pont.title, 'Cím')}
                             ${teruletMezo(`pontok.${i}.text`, pont.text, 'Szöveg', 2)}
-                            ${mezo('Ikon', `<select class="input-field" data-key="pontok.${i}.ikon">
-                                ${ikonok.map(([v, l]) => `<option value="${v}" ${pont.ikon === v ? 'selected' : ''}>${l}</option>`).join('')}
-                            </select>`)}
+                            ${mezo('Ikon', `<div style="display:flex; align-items:center; gap:10px;">
+                                <span class="km-ikon-elonezet">${ikonElonezetHtml(pont.ikon)}</span>
+                                <button type="button" class="btn btn-secondary btn-sm" data-ikon-valaszto="${i}">Ikon választása…</button>
+                            </div>`)}
                         </div>`;
                     });
                     break;
@@ -568,6 +670,16 @@
                         const doboz = document.getElementById('pinDoboz');
                         if (doboz) doboz.style.display = el.value === 'kezi' ? 'block' : 'none';
                     }
+                    if (el.dataset.key === 'megjelenes.hatter') {
+                        const doboz = panel.querySelector('[data-egyeni-doboz]');
+                        if (doboz) doboz.style.display = el.value === 'egyeni' ? 'block' : 'none';
+                        // Egyénire váltáskor a színválasztó aktuális értéke azonnal a configba
+                        // kerül, hogy mentéskor legyen érvényes hex (ne üres).
+                        if (el.value === 'egyeni') {
+                            const szin = panel.querySelector('input[data-key="megjelenes.hatter_szin"]');
+                            if (szin) setDeep(modulById(selectedId).beallitasok, 'megjelenes.hatter_szin', szin.value);
+                        }
+                    }
                 });
             });
 
@@ -581,6 +693,10 @@
             const pinBtn = panel.querySelector('#pinHozzaad');
             if (pinBtn) pinBtn.addEventListener('click', () => nyisdValaszto(modulById(selectedId)));
 
+            panel.querySelectorAll('[data-ikon-valaszto]').forEach(bt => {
+                bt.addEventListener('click', () => nyisdIkonValaszto(+bt.dataset.ikonValaszto));
+            });
+
             const torles = panel.querySelector('#szabadTorles');
             if (torles) torles.addEventListener('click', () => {
                 if (!confirm('Biztosan törlöd ezt a szabad szekciót? A tartalma elvész.')) return;
@@ -590,6 +706,75 @@
                 jelolModositast();
                 renderLista();
                 renderEditor();
+            });
+        }
+
+        // ── "Miért mi?" ikon-választó ────────────────────────────────────────
+        // A beépített SVG-készlet a WP plugin publikus assets mappájából jön
+        // (kezdolap plugin v1.9.0+ kell hozzá élesben).
+        const IKON_URL = 'https://travelpont.hu/wp-content/plugins/travelpont-kezdolap/assets/icons/miert-mi/';
+        const IKON_KESZLET = ['repulo', 'borond', 'iranytu', 'terkep', 'terkep-pont', 'fold', 'nap',
+            'napernyo', 'hegy', 'horgony', 'sziv', 'csillag', 'pajzs', 'pipa', 'kamera', 'jegy',
+            'naptar', 'ora', 'penz', 'telefon', 'csapat', 'szikra', 'koktel', 'kave', 'haz', 'zaszlo'];
+        const REGI_IKONOK = { circle: '●', square: '■', loader: '⟳', bag: '👜' };
+
+        function ikonElonezetHtml(ikon) {
+            if (ikon && ikon.startsWith('svg:')) {
+                return `<img src="${IKON_URL}${escapeHtml(ikon.slice(4))}.svg" alt="" onerror="this.replaceWith('🖼️')">`;
+            }
+            if (ikon && ikon.startsWith('emoji:')) return escapeHtml(ikon.slice(6));
+            return REGI_IKONOK[ikon] || '●';
+        }
+
+        function nyisdIkonValaszto(pontIdx) {
+            const m = modulById(selectedId);
+
+            const hatter = document.createElement('div');
+            hatter.className = 'km-modal-hatter';
+            hatter.innerHTML = `
+                <div class="km-modal">
+                    <div class="km-modal-fej">
+                        <h3>Ikon választása — ${pontIdx + 1}. pont</h3>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bezar>✕</button>
+                    </div>
+                    <div class="km-modal-lista">
+                        <label class="input-label" style="display:block; margin-bottom:8px;">Beépített ikonok (a márka színét kapják)</label>
+                        <div class="km-ikon-racs">
+                            ${IKON_KESZLET.map(nev => `
+                                <button type="button" data-ikon="svg:${nev}" title="${nev}">
+                                    <img src="${IKON_URL}${nev}.svg" alt="${nev}" onerror="this.replaceWith('${nev}')">
+                                </button>`).join('')}
+                        </div>
+                        <label class="input-label" style="display:block; margin-bottom:8px;">Egyszerű alakzatok (eredeti készlet)</label>
+                        <div class="km-ikon-racs" style="grid-template-columns:repeat(4, 52px);">
+                            ${Object.entries(REGI_IKONOK).map(([v, jel]) => `
+                                <button type="button" data-ikon="${v}" title="${v}">${jel}</button>`).join('')}
+                        </div>
+                        <label class="input-label" style="display:block; margin:10px 0 6px;">…vagy bármilyen emoji</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" class="input-field" id="emojiMezo" placeholder="pl. 🏝️" maxlength="4" style="width:110px;">
+                            <button type="button" class="btn btn-secondary btn-sm" id="emojiOk">Ezt kérem</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(hatter);
+
+            const bezar = () => hatter.remove();
+            hatter.addEventListener('click', e => { if (e.target === hatter) bezar(); });
+            hatter.querySelector('[data-bezar]').addEventListener('click', bezar);
+
+            function valaszt(ertek) {
+                setDeep(m.beallitasok, `pontok.${pontIdx}.ikon`, ertek);
+                jelolModositast();
+                bezar();
+                renderEditor();
+            }
+            hatter.querySelectorAll('[data-ikon]').forEach(bt =>
+                bt.addEventListener('click', () => valaszt(bt.dataset.ikon)));
+            hatter.querySelector('#emojiOk').addEventListener('click', () => {
+                const emoji = hatter.querySelector('#emojiMezo').value.trim();
+                if (!emoji) { toast('Írj be egy emojit!', 'info'); return; }
+                valaszt('emoji:' + emoji);
             });
         }
 
