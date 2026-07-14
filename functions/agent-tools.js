@@ -35,7 +35,7 @@ const AGENT_TOOL_DEFINITIONS = [
     },
     {
         name: 'list_ajanlatok',
-        description: 'A weboldal utazási ajánlatainak (repjegy+szállás kombók) listázása: célállomás, ár, időpont, érvényesség. Használd FB-poszthoz, tartalomnaptárhoz, vagy ha egy úticélhoz tartozó ajánlatokra hivatkoznál.',
+        description: 'A weboldal utazási ajánlatainak (repülő+szállás, busz+szállás vagy csak szállás) listázása: célállomás, ár, időpont, érvényesség. Használd FB-poszthoz, tartalomnaptárhoz, vagy ha egy úticélhoz tartozó ajánlatokra hivatkoznál.',
         input_schema: {
             type: 'object',
             properties: {

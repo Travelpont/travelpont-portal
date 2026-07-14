@@ -139,9 +139,10 @@
 
         function emptyItem() {
             return { id: null, title: '', content: '', status: 'publish', kategoriak: [], thumbnail_url: '',
+                tpa_ajanlat_tipus: 'repulo_szallas',
                 tpa_celallomas: '', tpa_indulas: '', tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
-                tpa_repjegy_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '2 fő, repülőjeggyel együtt',
-                tpa_ervenyes: '', tpa_kiwi_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
+                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '2 fő, repülőjeggyel együtt',
+                tpa_ervenyes: '', tpa_kiwi_link: '', tpa_busz_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
                 seo_title: '', seo_metadesc: '', galeria: [] };
         }
 
@@ -180,6 +181,15 @@
                 <div class="crud-section-title">Alapadatok</div>
                 <div class="input-group"><label class="input-label">Cím</label><input class="input-field" id="f_title" value="${escapeAttr(item.title)}" placeholder="pl. Amalfi-part 4 éjszaka"></div>
                 <div class="input-group">
+                    <label class="input-label">Ajánlat típusa</label>
+                    <select class="input-field" id="f_ajanlat_tipus">
+                        <option value="repulo_szallas" ${item.tpa_ajanlat_tipus === 'repulo_szallas' || !item.tpa_ajanlat_tipus ? 'selected' : ''}>✈️ Repülő + szállás</option>
+                        <option value="busz_szallas" ${item.tpa_ajanlat_tipus === 'busz_szallas' ? 'selected' : ''}>🚌 Busz (Flixbus) + szállás</option>
+                        <option value="csak_szallas" ${item.tpa_ajanlat_tipus === 'csak_szallas' ? 'selected' : ''}>🏨 Csak szállás (egyéni utazás)</option>
+                    </select>
+                    <div class="input-hint">Ez szabja meg, mely mezők (repjegy/busz link és ár) jelennek meg lent.</div>
+                </div>
+                <div class="input-group">
                     <button class="crud-ai-btn" id="aiBtn" type="button">✨ AI segítség a leíráshoz</button>
                     <div class="crud-ai-panel" id="aiPanel" style="display:none;">
                         <textarea class="input-field" id="aiPrompt" placeholder="Írd le pár szóban, miről szóljon (pl. '4 éjszaka Amalfi-parton, repülővel Salernóba')" rows="2"></textarea>
@@ -212,9 +222,10 @@
 
                 <div class="crud-section-title">Ár és érvényesség</div>
                 <div class="crud-row-2">
-                    <div class="input-group"><label class="input-label">Repjegy ár (Ft)</label><input class="input-field" type="number" min="0" id="f_repjegy" value="${escapeAttr(item.tpa_repjegy_ar)}"></div>
-                    <div class="input-group"><label class="input-label">Szállás ár (Ft)</label><input class="input-field" type="number" min="0" id="f_szallas_ar" value="${escapeAttr(item.tpa_szallas_ar)}"></div>
+                    <div class="input-group" data-tpa-tipus="repulo_szallas"><label class="input-label">Repjegy ár (Ft)</label><input class="input-field" type="number" min="0" id="f_repjegy" value="${escapeAttr(item.tpa_repjegy_ar)}"></div>
+                    <div class="input-group" data-tpa-tipus="busz_szallas"><label class="input-label">Buszjegy ár (Ft)</label><input class="input-field" type="number" min="0" id="f_busz_ar" value="${escapeAttr(item.tpa_busz_ar)}"></div>
                 </div>
+                <div class="input-group"><label class="input-label">Szállás ár (Ft)</label><input class="input-field" type="number" min="0" id="f_szallas_ar" value="${escapeAttr(item.tpa_szallas_ar)}"></div>
                 <div class="input-group">
                     <label class="input-label">Ár összesen (Ft) – ha üres, a repjegy+szállás összegét használjuk</label>
                     <input class="input-field" type="number" min="0" id="f_ar" value="${escapeAttr(item.tpa_ar)}">
@@ -226,7 +237,7 @@
                 </div>
 
                 <div class="crud-section-title">Affiliate linkek</div>
-                <div class="input-group">
+                <div class="input-group" data-tpa-tipus="repulo_szallas">
                     <label class="input-label">Kiwi.com deep link</label>
                     <button class="crud-tool-btn" id="kiwiBtn" type="button">🔗 Link összeállítása (IATA-kód + dátumok)</button>
                     <div class="crud-tool-panel" id="kiwiPanel" style="display:none;">
@@ -246,6 +257,10 @@
                         <input class="input-field" id="f_kiwi" value="${escapeAttr(item.tpa_kiwi_link)}" placeholder="https://c111.travelpayouts.com/click?...">
                         <button class="btn btn-ghost btn-sm" id="kiwiTestBtn" type="button" style="white-space:nowrap;">Tesztelés ↗</button>
                     </div>
+                </div>
+                <div class="input-group" data-tpa-tipus="busz_szallas">
+                    <label class="input-label">Flixbus / busz link</label>
+                    <input class="input-field" id="f_busz_link" value="${escapeAttr(item.tpa_busz_link)}" placeholder="https://www.flixbus.hu/...">
                 </div>
                 <div class="crud-row-2">
                     <div class="input-group"><label class="input-label">Szállás link</label><input class="input-field" id="f_szallas_link" value="${escapeAttr(item.tpa_szallas_link)}"></div>
@@ -300,7 +315,10 @@
                 });
             });
 
-            ['f_repjegy', 'f_szallas_ar', 'f_ar'].forEach(id => {
+            document.getElementById('f_ajanlat_tipus').addEventListener('change', frissitTipusMezok);
+            frissitTipusMezok();
+
+            ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_ar'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updatePricePreview);
             });
             updatePricePreview();
@@ -417,12 +435,23 @@
 
         function updatePricePreview() {
             const repjegy = parseFloat(document.getElementById('f_repjegy').value) || 0;
+            const busz = parseFloat(document.getElementById('f_busz_ar').value) || 0;
             const szallas = parseFloat(document.getElementById('f_szallas_ar').value) || 0;
             const ar = document.getElementById('f_ar').value;
             const preview = document.getElementById('pricePreview');
             if (ar) { preview.textContent = ''; return; }
-            const osszeg = repjegy + szallas;
+            const osszeg = repjegy + busz + szallas;
             preview.textContent = osszeg > 0 ? `Számított összeg: ${osszeg.toLocaleString('hu-HU')} Ft` : '';
+        }
+
+        // Az "Ajánlat típusa" select alapján mutatja/rejti a típus-specifikus
+        // mezőket (repjegy/Kiwi-link vagy busz-ár/busz-link) – a WP admin
+        // 'assets/js/admin-tipus-toggle.js'-jével analóg logika.
+        function frissitTipusMezok() {
+            const aktualisTipus = document.getElementById('f_ajanlat_tipus').value;
+            document.querySelectorAll('[data-tpa-tipus]').forEach(mezo => {
+                mezo.style.display = mezo.dataset.tpaTipus === aktualisTipus ? '' : 'none';
+            });
         }
 
         async function runAI() {
@@ -527,12 +556,15 @@
                 tpa_idopont: document.getElementById('f_idopont').value,
                 tpa_ejszakak: document.getElementById('f_ejszakak').value,
                 tpa_uticel: document.getElementById('f_uticel').value,
+                tpa_ajanlat_tipus: document.getElementById('f_ajanlat_tipus').value,
                 tpa_repjegy_ar: document.getElementById('f_repjegy').value,
+                tpa_busz_ar: document.getElementById('f_busz_ar').value,
                 tpa_szallas_ar: document.getElementById('f_szallas_ar').value,
                 tpa_ar: document.getElementById('f_ar').value,
                 tpa_ar_megjegyzes: document.getElementById('f_ar_megjegyzes').value,
                 tpa_ervenyes: document.getElementById('f_ervenyes').value,
                 tpa_kiwi_link: document.getElementById('f_kiwi').value,
+                tpa_busz_link: document.getElementById('f_busz_link').value,
                 tpa_szallas_link: document.getElementById('f_szallas_link').value,
                 tpa_szallas_platform: document.getElementById('f_szallas_platform').value,
             };
