@@ -105,6 +105,24 @@
             border-radius: var(--radius-md); font-size: 12.5px; color: var(--gold);
         }
         .km-cache-sav.show { display: block; }
+
+        .km-megj-szakasz { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 14px; }
+        .km-megj-szakasz h4 { font-size: 12.5px; color: var(--gold); margin-bottom: 10px; }
+
+        .km-elonezet-hatter {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+            z-index: 950; display: flex; flex-direction: column;
+        }
+        .km-elonezet-fej {
+            display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+            background: var(--bg-card); border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .km-elonezet-fej h3 { font-size: 13.5px; margin-right: auto; }
+        .km-elonezet-keret { flex: 1; display: flex; justify-content: center; overflow: auto; padding: 14px; }
+        .km-elonezet-keret iframe { background: #fff; border: none; border-radius: 8px; width: 100%; height: 100%; flex-shrink: 0; }
+        .km-elonezet-keret.km-mobil iframe { width: 375px; }
+        .km-elonezet-betolt { color: var(--text-secondary); font-size: 13px; align-self: center; }
     </style>
 </head>
 <body>
@@ -112,6 +130,7 @@
         <header class="navbar">
             <div class="navbar-brand"><div class="navbar-title">🏠 Kezdőlap</div></div>
             <div class="navbar-right" style="display:flex; gap:8px; align-items:center;">
+                <button class="btn btn-secondary btn-sm" id="previewBtn">👁️ Előnézet</button>
                 <a class="btn btn-secondary btn-sm" href="https://travelpont.hu/" target="_blank" rel="noopener">🌐 Főoldal megnyitása</a>
                 <button class="btn btn-primary btn-sm" id="saveBtn">💾 Mentés</button>
             </div>
@@ -323,6 +342,64 @@
             return mezo(label, `<textarea class="input-field" data-key="${kulcs}" rows="${sorok}">${escapeHtml(ertek)}</textarea>`, hint);
         }
 
+        // ── 🎨 Megjelenés-szakasz (kinézet-beállítások modulonként) ──────────
+        const HATTER_NEVEK = {
+            feher: 'Fehér', kek: 'Világoskék (márka)', vilagos: 'Világos bézs',
+            sotet: 'Sötétszürke (márka)', bezs: 'Bézs (márka)',
+        };
+        function megjSelect(kulcs, ertek, label, opciok, hint = '') {
+            return mezo(label, `<select class="input-field" data-key="megjelenes.${kulcs}">
+                ${opciok.map(([v, l]) => `<option value="${v}" ${String(ertek) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>`, hint);
+        }
+        function hatterOpciok(lista) { return lista.map(v => [v, HATTER_NEVEK[v]]); }
+
+        function megjSzakasz(m) {
+            if (m.tipus === 'szabad') return '';
+            if (!m.beallitasok.megjelenes) m.beallitasok.megjelenes = {};
+            const g = m.beallitasok.megjelenes;
+            let s = '';
+            const kepValaszto = (kulcs, label) => megjSelect(kulcs, g[kulcs], label,
+                [['kivagas', 'Kivágás — kitölti a keretet (a kép széle levágódhat)'],
+                 ['teljes', 'Teljes kép 16:9 — semmi nem vágódik le']],
+                'A feliratos borítóképeidhez a „Teljes kép" való.');
+
+            switch (m.tipus) {
+                case 'hero':
+                    s += kepValaszto('kep_illesztes', 'Hero-fotó illesztése');
+                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['kek', 'feher', 'vilagos']));
+                    break;
+                case 'ajanlatok':
+                    s += kepValaszto('kep_arany', 'Kártya-képek illesztése');
+                    s += megjSelect('oszlopok', g.oszlopok, 'Oszlopok száma', [[2, '2 oszlop (nagyobb kártyák)'], [3, '3 oszlop']]);
+                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['feher', 'kek', 'vilagos']));
+                    break;
+                case 'uticelok':
+                    s += megjSelect('stilus', g.stilus, 'Kártya-stílus',
+                        [['magazin', 'Magazin — háttérkép + rásimuló szöveg (a képet vágja!)'],
+                         ['mozaik', 'Mozaik — teljes 16:9 fotó + név-sáv (nem vág)'],
+                         ['kartya', 'Kártya — kép felül 16:9, szöveg alatta (nem vág)']],
+                        'A „nem vág" stílusokban a feliratos borítóképeid teljes egészében látszanak.');
+                    s += megjSelect('oszlopok', g.oszlopok, 'Oszlopok száma', [[2, '2 oszlop'], [3, '3 oszlop'], [4, '4 oszlop (kisebb csempék)']]);
+                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['sotet', 'feher', 'kek']));
+                    break;
+                case 'miert_mi':
+                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['feher', 'kek', 'vilagos']));
+                    break;
+                case 'utikalauz':
+                    s += kepValaszto('kep_arany', 'Cikk-képek illesztése');
+                    s += megjSelect('oszlopok', g.oszlopok, 'Oszlopok száma', [[2, '2 oszlop'], [3, '3 oszlop']]);
+                    s += megjSelect('hatter', g.hatter, 'Szekció háttere', hatterOpciok(['vilagos', 'feher', 'kek']));
+                    break;
+                case 'zaro_cta':
+                    s += megjSelect('hatter', g.hatter, 'Sáv háttere', hatterOpciok(['sotet', 'bezs']));
+                    break;
+            }
+            if (!s) return '';
+            return `<div class="km-megj-szakasz"><h4>🎨 Megjelenés</h4>${s}
+                <div class="km-hint">Tipp: a 👁️ Előnézet gombbal mentés nélkül megnézheted, hogyan mutat.</div></div>`;
+        }
+
         function kepMezoHtml(cel, url, label, hint) {
             const kep = url
                 ? `<img class="km-kep-elonezet" src="${escapeHtml(url)}" alt="">`
@@ -456,6 +533,8 @@
                     break;
             }
 
+            html += megjSzakasz(m);
+
             p.innerHTML = html;
             kossEsemenyeket(p);
 
@@ -476,7 +555,7 @@
                 el.addEventListener('input', () => {
                     const kulcs = el.dataset.key;
                     let ertek = el.value;
-                    if (el.dataset.key === 'darab') ertek = parseInt(ertek, 10);
+                    if (kulcs === 'darab' || kulcs.endsWith('.oszlopok')) ertek = parseInt(ertek, 10);
                     if (kulcs.startsWith('chrome.')) {
                         setDeep(config, kulcs, ertek);
                     } else {
@@ -714,6 +793,57 @@
             });
             jelolModositast();
             selectModul(id);
+        });
+
+        // ── 👁️ Élő előnézet: a VALÓDI főoldal, a jelenlegi (nem mentett) ─────
+        // beállításokkal — a WP 15 percre érvényes vázlat-linket ad vissza.
+        let elonezetMobil = false;
+        document.getElementById('previewBtn').addEventListener('click', () => {
+            syncSzabad();
+
+            const hatter = document.createElement('div');
+            hatter.className = 'km-elonezet-hatter';
+            hatter.innerHTML = `
+                <div class="km-elonezet-fej">
+                    <h3>👁️ Előnézet — a mostani beállításaiddal, mentés nélkül</h3>
+                    <button class="btn btn-secondary btn-sm" data-nezet>${elonezetMobil ? '🖥️ Asztali nézet' : '📱 Mobil nézet'}</button>
+                    <button class="btn btn-secondary btn-sm" data-frissit>🔄 Frissítés</button>
+                    <a class="btn btn-secondary btn-sm" data-ujful href="#" target="_blank" rel="noopener">↗️ Új fülön</a>
+                    <button class="btn btn-primary btn-sm" data-bezar>✕ Bezárás</button>
+                </div>
+                <div class="km-elonezet-keret${elonezetMobil ? ' km-mobil' : ''}">
+                    <div class="km-elonezet-betolt">Előnézet készítése…</div>
+                </div>`;
+            document.body.appendChild(hatter);
+            const keret = hatter.querySelector('.km-elonezet-keret');
+
+            async function betolt() {
+                keret.innerHTML = '<div class="km-elonezet-betolt">Előnézet készítése…</div>';
+                try {
+                    const v = await apiCall(PROXY, { action: 'elonezet', body: config, method: 'POST' });
+                    hatter.querySelector('[data-ujful]').href = v.url;
+                    const f = document.createElement('iframe');
+                    f.src = v.url;
+                    keret.innerHTML = '';
+                    keret.appendChild(f);
+                } catch (e) {
+                    console.error(e);
+                    keret.innerHTML = `<div class="km-elonezet-betolt">Az előnézet nem készült el: ${escapeHtml(e.message)} — próbáld a 🔄 gombbal.</div>`;
+                }
+            }
+            betolt();
+
+            const bezar = () => { hatter.remove(); document.removeEventListener('keydown', escKezelo); };
+            function escKezelo(e) { if (e.key === 'Escape') bezar(); }
+            document.addEventListener('keydown', escKezelo);
+
+            hatter.querySelector('[data-bezar]').addEventListener('click', bezar);
+            hatter.querySelector('[data-frissit]').addEventListener('click', () => { syncSzabad(); betolt(); });
+            hatter.querySelector('[data-nezet]').addEventListener('click', ev => {
+                elonezetMobil = !elonezetMobil;
+                keret.classList.toggle('km-mobil', elonezetMobil);
+                ev.target.textContent = elonezetMobil ? '🖥️ Asztali nézet' : '📱 Mobil nézet';
+            });
         });
 
         // ── Mentés ───────────────────────────────────────────────────────────

@@ -365,6 +365,8 @@ exports.kezdolapProxy = onRequest(
                 return { url: `${WP_BASE}/tpk/v1/kezdolap`, method: 'GET' };
             case 'save':
                 return { url: `${WP_BASE}/tpk/v1/kezdolap`, method: 'PUT', body: JSON.stringify(req.body) };
+            case 'elonezet':
+                return { url: `${WP_BASE}/tpk/v1/kezdolap/elonezet`, method: 'POST', body: JSON.stringify(req.body) };
             case 'sideload':
                 return { url: `${WP_BASE}/tpk/v1/kezdolap/kep`, method: 'POST', body: JSON.stringify(req.body) };
             case 'status':
