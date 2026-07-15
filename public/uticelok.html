@@ -57,6 +57,7 @@
         import { showElonezet } from './js/elonezet.js';
         import { escapeHtml, escapeAttr } from './js/tpu-format.js';
         import { attachCharCounter } from './js/char-counter.js';
+        import { createSearchableSelect } from './js/searchable-select.js';
 
         const PROXY = API_CONFIG.UTICEL_PROXY_URL;
 
@@ -91,6 +92,7 @@
         let metaFlat = [];    // meta action – teljes flat lista (szülő-választóhoz)
         let activeId = null;
         let contentBlokkok = null; // a "Bemutató szöveg" blokk-szerkesztő aktuális példánya
+        let parentSelect = null;  // a szülő-választó kereshető-combobox aktuális példánya
         let currentItem = null;   // a szerkesztőben épp megnyitott úticél (galéria-frissítéshez kell)
         let dirty = false;        // van-e mentetlen módosítás a szerkesztőben
 
@@ -132,7 +134,8 @@
 
         function alkalmazSnapshot(m) {
             const beir = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
-            beir('f_title', m.title); beir('f_status', m.status); beir('f_parent', m.parent);
+            beir('f_title', m.title); beir('f_status', m.status);
+            if (parentSelect && m.parent !== undefined) parentSelect.setValue(m.parent || '');
             beir('f_leiras', m.leiras); beir('f_penznem', m.penznem); beir('f_nyelv', m.nyelv);
             beir('f_idozona', m.idozona); beir('f_beutazas', m.beutazas);
             beir('f_legjobb_idoszak', m.legjobb_idoszak); beir('f_repuloter', m.repuloter);
@@ -217,7 +220,7 @@
                     await selectItem(null);
                     // Új, AI-ból érkező úticél biztonságos alapja: piszkozat
                     document.getElementById('f_status').value = 'draft';
-                    if (p.parent_id) document.getElementById('f_parent').value = String(p.parent_id);
+                    if (p.parent_id && parentSelect) parentSelect.setValue(p.parent_id);
                 }
 
                 if (p.cim)    document.getElementById('f_title').value = p.cim;
@@ -262,15 +265,15 @@
         }
 
         document.getElementById('newBtn').addEventListener('click', () => selectItem(null));
-        document.getElementById('searchInput').addEventListener('input', debounce(() => loadAll(), 350));
+        // A kereső mostantól a MÁR betöltött fát szűri kliens-oldalon (azonnal, szerverkérés nélkül).
+        document.getElementById('searchInput').addEventListener('input', () => renderList());
 
         function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
         async function loadAll() {
-            const search = document.getElementById('searchInput').value.trim();
             try {
                 const [listData, metaData] = await Promise.all([
-                    apiCall(PROXY, { action: 'list', extraQuery: { search, status: 'any', per_page: 200 } }),
+                    apiCall(PROXY, { action: 'list', extraQuery: { status: 'any', per_page: 200 } }),
                     apiCall(PROXY, { action: 'meta' }),
                 ]);
                 items = listData.items || [];
@@ -295,10 +298,35 @@
             return result;
         }
 
+        // Ékezet-független normalizálás a kliens-oldali kereséshez.
+        function normUt(s) { return (s ?? '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+        // A keresőmező alapján szűrt lista: a találó elemek + ŐSEIK (hogy a fa-út
+        // megmaradjon) + LESZÁRMAZOTTAIK (hogy pl. "ausztria" az egész ágat mutassa).
+        function szurtLista() {
+            const q = normUt(document.getElementById('searchInput').value.trim());
+            if (!q) return items;
+            const byId = {};
+            items.forEach(it => { byId[it.id] = it; });
+            const talalo = new Set(items.filter(it => normUt(it.title).includes(q)).map(it => it.id));
+            const mutat = new Set();
+            talalo.forEach(id => { // találó + ősei
+                let cur = byId[id], g = 0;
+                while (cur && g++ < 20) { mutat.add(cur.id); cur = cur.parent ? byId[cur.parent] : null; }
+            });
+            items.forEach(it => { // + a találók leszármazottai
+                let cur = it, g = 0;
+                while (cur && g++ < 20) { if (talalo.has(cur.id)) { mutat.add(it.id); break; } cur = cur.parent ? byId[cur.parent] : null; }
+            });
+            return items.filter(it => mutat.has(it.id));
+        }
+
         function renderList() {
             const c = document.getElementById('listContainer');
             if (items.length === 0) { c.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nincs találat.</p>'; return; }
-            const ordered = buildOrderedTree(items);
+            const lista = szurtLista();
+            if (lista.length === 0) { c.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Nincs találat erre a keresésre.</p>'; return; }
+            const ordered = buildOrderedTree(lista);
             c.innerHTML = ordered.map(it => `
                 <div class="crud-list-item ${it.id === activeId ? 'active' : ''}" data-depth="${Math.min(it.depth, 3)}" data-id="${it.id}">
                     ${it.thumbnail_url ? `<img class="crud-list-thumb" src="${it.thumbnail_url}">` : `<div class="crud-list-thumb"></div>`}
@@ -339,15 +367,18 @@
         // A szint-választó lehetőségei (a WP plugin tpu_get_szintek()-jét tükrözi).
         const SZINTEK = { orszag: 'Ország', regio: 'Régió / tájegység', varos: 'Város / település', egyeb: 'Egyéb terület' };
 
-        // ---- Szülő-választó legördülő: fastruktúra behúzással, önmaga kizárva ----
-        function parentOptionsHtml(currentId, selectedParent) {
-            const ordered = buildOrderedTree(metaFlat.filter(m => m.id !== currentId));
-            const opts = ['<option value="0">— nincs (gyökér szintű, pl. ország) —</option>']
-                .concat(ordered.map(m => {
-                    const indent = '　'.repeat(m.depth); // teljes szélességű szóköz a behúzáshoz
-                    return `<option value="${m.id}" ${String(m.id) === String(selectedParent) ? 'selected' : ''}>${indent}${escapeHtml(m.title)}</option>`;
-                }));
-            return opts.join('');
+        // ---- Egy úticél teljes lánc-címkéje a metaFlat-ból: "Ország › Régió › Város" ----
+        function uticelLancLabel(id) {
+            const byId = {};
+            metaFlat.forEach(m => { byId[m.id] = m; });
+            const reszek = [];
+            let cur = byId[id];
+            let guard = 0; // védelem esetleges ciklus ellen
+            while (cur && guard++ < 20) {
+                reszek.unshift(cur.title || '(cím nélkül)');
+                cur = cur.parent ? byId[cur.parent] : null;
+            }
+            return reszek.join(' › ');
         }
 
         function renderEditor(item) {
@@ -390,8 +421,8 @@
 
                 <div class="input-group">
                     <label class="input-label">Szülő úticél</label>
-                    <select class="input-field" id="f_parent">${parentOptionsHtml(item.id, item.parent)}</select>
-                    <div class="input-hint">Országnál hagyd üresen; tájegységnél/városnál válaszd ki a fölérendelt úticélt.</div>
+                    <div id="parentMount"></div>
+                    <div class="input-hint">Kezdj gépelni a kereséshez. Országnál hagyd üresen; tájegységnél/városnál válaszd ki a fölérendelt úticélt.</div>
                 </div>
 
                 <div class="input-group">
@@ -499,6 +530,18 @@
             document.getElementById('seoAiBtn').addEventListener('click', runSeoSuggestion);
 
             document.getElementById('saveBtn').addEventListener('click', saveItem);
+
+            // Gépelős szülő-kereső (rejtett f_parent mezőbe menti az ID-t; '' = gyökér)
+            parentSelect = createSearchableSelect(document.getElementById('parentMount'), {
+                options: metaFlat
+                    .filter(m => m.id !== item.id)
+                    .map(m => ({ id: m.id, label: uticelLancLabel(m.id) }))
+                    .sort((a, b) => a.label.localeCompare(b.label, 'hu')),
+                selectedId: item.parent ? String(item.parent) : '',
+                hiddenId: 'f_parent',
+                emptyLabel: '— nincs (gyökér szintű, pl. ország) —',
+                placeholder: 'Kezdj gépelni… (pl. Ausztria)',
+            });
 
             // Szint-függő mezők mutatása/rejtése (a WP admin-szint.js logikáját tükrözi):
             // üres szint = minden látszik; egyébként csak az adott szinthez tartozó.
@@ -654,7 +697,7 @@
                 title: document.getElementById('f_title').value.trim(),
                 content: getContentHtml(),
                 status: document.getElementById('f_status').value,
-                parent: document.getElementById('f_parent').value,
+                parent: document.getElementById('f_parent').value || '0', // '' (gyökér) → '0' a WP integer-validációhoz
                 tpu_leiras: document.getElementById('f_leiras').value,
                 tpu_szint: document.getElementById('f_szint').value,
                 tpu_penznem: document.getElementById('f_penznem').value,

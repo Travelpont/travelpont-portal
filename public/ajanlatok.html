@@ -48,6 +48,7 @@
         import { buildKiwiLink } from './js/kiwi-link-builder.js';
         import { airportDatalistOptionsHtml } from './js/iata-airports.js';
         import { attachCharCounter } from './js/char-counter.js';
+        import { createSearchableSelect } from './js/searchable-select.js';
 
         const PROXY = API_CONFIG.AJANLAT_PROXY_URL;
 
@@ -147,11 +148,6 @@
                 seo_title: '', seo_metadesc: '', galeria: [] };
         }
 
-        function uticelOptionsHtml(selectedId) {
-            const opts = ['<option value="">— nincs kiválasztva —</option>']
-                .concat(meta.uticelok.map(u => `<option value="${u.id}" ${String(u.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(u.label)}</option>`));
-            return opts.join('');
-        }
 
         function renderEditor(item) {
             selectedKategoriak = [...(item.kategoriak || [])];
@@ -211,8 +207,8 @@
                 </div>
                 <div class="input-group">
                     <label class="input-label">Úticél</label>
-                    <select class="input-field" id="f_uticel">${uticelOptionsHtml(item.tpa_uticel)}</select>
-                    <div class="input-hint">Az ajánlat automatikusan megjelenik a kiválasztott Úticél oldalán.</div>
+                    <div id="uticelMount"></div>
+                    <div class="input-hint">Kezdj gépelni (város vagy ország) a kereséshez. Az ajánlat automatikusan megjelenik a kiválasztott Úticél oldalán.</div>
                 </div>
                 <div class="input-group">
                     <label class="input-label">Kategóriák</label>
@@ -318,6 +314,14 @@
 
             document.getElementById('f_ajanlat_tipus').addEventListener('change', frissitTipusMezok);
             frissitTipusMezok();
+
+            // Gépelős úticél-kereső (rejtett f_uticel mezőbe menti az ID-t)
+            createSearchableSelect(document.getElementById('uticelMount'), {
+                options: (meta.uticelok || []).map(u => ({ id: u.id, label: u.label })),
+                selectedId: item.tpa_uticel,
+                hiddenId: 'f_uticel',
+                placeholder: 'Kezdj gépelni… (pl. Schladming vagy Ausztria)',
+            });
 
             ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_ar'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updatePricePreview);

@@ -124,6 +124,34 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 .input-field::placeholder { color: var(--text-muted); }
 .input-field:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-dim); }
 
+/* ── Kereshető legördülő (searchable-select.js) ─────────────────────────── */
+.ss-wrap { position: relative; }
+.ss-input {
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 11px 14px;
+    font-family: 'Inter', sans-serif; font-size: 14px;
+    color: var(--text-primary); width: 100%;
+    transition: border-color var(--transition), box-shadow var(--transition); outline: none;
+    cursor: text;
+}
+.ss-input::placeholder { color: var(--text-muted); }
+.ss-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-dim); }
+.ss-menu {
+    position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px);
+    max-height: 280px; overflow-y: auto;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+    padding: 4px;
+}
+.ss-item {
+    padding: 8px 12px; border-radius: var(--radius-sm);
+    font-size: 13.5px; color: var(--text-primary); cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ss-item:hover, .ss-item--active { background: var(--bg-card-hover); }
+.ss-item--active { box-shadow: inset 2px 0 0 var(--teal); }
+.ss-empty { padding: 10px 12px; font-size: 13px; color: var(--text-muted); }
+
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
