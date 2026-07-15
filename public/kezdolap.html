@@ -193,6 +193,7 @@
         import { API_CONFIG } from './js/api-config.js';
         import { auth, storage } from './js/firebase-config.js';
         import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+        import { optimalizaltWebp } from './js/kep-webp.js';
 
         const PROXY = API_CONFIG.KEZDOLAP_PROXY_URL;
 
@@ -799,9 +800,10 @@
             toast('Kép feltöltése…', 'info');
             try {
                 const uid = auth.currentUser.uid;
-                const utvonal = `kezdolap/${uid}/${Date.now()}_${safeFileName(file.name)}`;
+                const kimenet = await optimalizaltWebp(file);
+                const utvonal = `kezdolap/${uid}/${Date.now()}_${safeFileName(kimenet.name)}`;
                 const r = ref(storage, utvonal);
-                await uploadBytes(r, file);
+                await uploadBytes(r, kimenet);
                 const url = await getDownloadURL(r);
 
                 const valasz = await apiCall(PROXY, { action: 'sideload', body: { url, cel } });

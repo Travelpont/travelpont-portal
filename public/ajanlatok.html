@@ -43,6 +43,7 @@
         import { API_CONFIG } from './js/api-config.js';
         import { auth, storage } from './js/firebase-config.js';
         import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+        import { optimalizaltWebp } from './js/kep-webp.js';
         import { generateWithAI, generatePostCaption, generateSeoSuggestion } from './js/ai-helper.js';
         import { setupQuillEditor, setQuillContent } from './js/quill-helper.js';
         import { buildKiwiLink } from './js/kiwi-link-builder.js';
@@ -401,9 +402,10 @@
             if (!file || !activeId) return;
             try {
                 const uid = auth.currentUser.uid;
-                const path = `ajanlatok/${uid}/galeria_${Date.now()}_${safeFileName(file.name)}`;
+                const kimenet = await optimalizaltWebp(file);
+                const path = `ajanlatok/${uid}/galeria_${Date.now()}_${safeFileName(kimenet.name)}`;
                 const storageRef = ref(storage, path);
-                await uploadBytes(storageRef, file);
+                await uploadBytes(storageRef, kimenet);
                 const url = await getDownloadURL(storageRef);
 
                 const result = await apiCall(PROXY, { action: 'galeria_add', extraQuery: { id: activeId }, body: { url } });
@@ -599,9 +601,10 @@
             dropzone.innerHTML = '<div class="spinner"></div>';
             try {
                 const uid = auth.currentUser.uid;
-                const path = `ajanlatok/${uid}/${Date.now()}_${safeFileName(file.name)}`;
+                const kimenet = await optimalizaltWebp(file);
+                const path = `ajanlatok/${uid}/${Date.now()}_${safeFileName(kimenet.name)}`;
                 const storageRef = ref(storage, path);
-                await uploadBytes(storageRef, file);
+                await uploadBytes(storageRef, kimenet);
                 const url = await getDownloadURL(storageRef);
 
                 const result = await apiCall(PROXY, { action: 'sideload', extraQuery: { id: activeId }, body: { url } });
