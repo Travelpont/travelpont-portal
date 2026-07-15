@@ -128,6 +128,7 @@
         async function selectItem(id) {
             activeId = id;
             renderList();
+            await loadMeta(); // friss úticél-lista: a más fülön / épp most felvitt úticélok is választhatók legyenek reload nélkül
             if (id === null) { renderEditor(emptyItem()); return; }
             try {
                 const item = await apiCall(PROXY, { action: 'get', extraQuery: { id } });
