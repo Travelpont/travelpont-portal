@@ -143,8 +143,10 @@
         function emptyItem() {
             return { id: null, title: '', content: '', status: 'publish', kategoriak: [], thumbnail_url: '',
                 tpa_ajanlat_tipus: 'repulo_szallas',
-                tpa_celallomas: '', tpa_indulas: '', tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
-                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '2 fő, repülőjeggyel együtt',
+                tpa_celallomas: '', tpa_indulas: '', tpa_indulas_datum: '', tpa_hazaut_datum: '',
+                tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
+                tpa_szallas_nev: '', tpa_szallas_csillag: '', tpa_szallas_ellatas: '',
+                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '',
                 tpa_ervenyes: '', tpa_kiwi_link: '', tpa_busz_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
                 seo_title: '', seo_metadesc: '', galeria: [] };
         }
@@ -203,8 +205,13 @@
                     <div class="input-group"><label class="input-label">Indulás helye</label><input class="input-field" id="f_indulas" value="${escapeAttr(item.tpa_indulas)}" placeholder="pl. Budapest"></div>
                 </div>
                 <div class="crud-row-2">
-                    <div class="input-group"><label class="input-label">Utazás időpontja</label><input class="input-field" id="f_idopont" value="${escapeAttr(item.tpa_idopont)}" placeholder="pl. 2026. szeptember 10–14."></div>
-                    <div class="input-group"><label class="input-label">Éjszakák száma</label><input class="input-field" type="number" min="0" id="f_ejszakak" value="${escapeAttr(item.tpa_ejszakak)}"></div>
+                    <div class="input-group"><label class="input-label">Odaút / érkezés dátuma</label><input class="input-field" type="date" id="f_indulas_datum" value="${escapeAttr(item.tpa_indulas_datum)}"></div>
+                    <div class="input-group"><label class="input-label">Hazaút / távozás dátuma</label><input class="input-field" type="date" id="f_hazaut_datum" value="${escapeAttr(item.tpa_hazaut_datum)}"></div>
+                </div>
+                <div class="input-hint" id="datumInfo" style="margin:-6px 0 10px;"></div>
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Utazás időpontja (csak ha nincs pontos dátum)</label><input class="input-field" id="f_idopont" value="${escapeAttr(item.tpa_idopont)}" placeholder="pl. 2026. szeptember 10–14."></div>
+                    <div class="input-group"><label class="input-label">Éjszakák (csak ha nincs pontos dátum)</label><input class="input-field" type="number" min="0" id="f_ejszakak" value="${escapeAttr(item.tpa_ejszakak)}"></div>
                 </div>
                 <div class="input-group">
                     <label class="input-label">Úticél</label>
@@ -215,6 +222,35 @@
                     <label class="input-label">Kategóriák</label>
                     <div class="crud-tag-grid" id="kategoriaGrid">
                         ${meta.kategoriak.map(k => `<span class="crud-tag ${selectedKategoriak.includes(k.name) ? 'selected' : ''}" data-name="${escapeAttr(k.name)}">${escapeHtml(k.name)}</span>`).join('')}
+                    </div>
+                </div>
+
+                <div class="crud-section-title">🏨 Szállás adatai</div>
+                <div class="input-group">
+                    <label class="input-label">Szállás neve</label>
+                    <input class="input-field" id="f_szallas_nev" value="${escapeAttr(item.tpa_szallas_nev)}" placeholder="pl. Emelias Residences">
+                    <div class="input-hint">Ahogy a foglalási oldalon szerepel – a kártyán és az aloldalon is megjelenik.</div>
+                </div>
+                <div class="crud-row-2">
+                    <div class="input-group">
+                        <label class="input-label">Csillagbesorolás</label>
+                        <select class="input-field" id="f_szallas_csillag">
+                            <option value="" ${!item.tpa_szallas_csillag ? 'selected' : ''}>— nincs megadva —</option>
+                            ${[1,2,3,4,5].map(n => `<option value="${n}" ${String(item.tpa_szallas_csillag) === String(n) ? 'selected' : ''}>${n} csillagos (${'★'.repeat(n)})</option>`).join('')}
+                        </select>
+                        <div class="input-hint">Apartmannál/magánszállásnál hagyd üresen.</div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Ellátás</label>
+                        <select class="input-field" id="f_szallas_ellatas">
+                            <option value="" ${!item.tpa_szallas_ellatas ? 'selected' : ''}>— nincs megadva —</option>
+                            <option value="onellatas" ${item.tpa_szallas_ellatas === 'onellatas' ? 'selected' : ''}>Önellátás</option>
+                            <option value="reggeli" ${item.tpa_szallas_ellatas === 'reggeli' ? 'selected' : ''}>Reggelivel</option>
+                            <option value="felpanzio" ${item.tpa_szallas_ellatas === 'felpanzio' ? 'selected' : ''}>Félpanzió (reggeli + vacsora)</option>
+                            <option value="teljes_panzio" ${item.tpa_szallas_ellatas === 'teljes_panzio' ? 'selected' : ''}>Teljes panzió</option>
+                            <option value="all_inclusive" ${item.tpa_szallas_ellatas === 'all_inclusive' ? 'selected' : ''}>All inclusive</option>
+                        </select>
+                        <div class="input-hint">Mit tartalmaz az ár étkezésből.</div>
                     </div>
                 </div>
 
@@ -230,7 +266,7 @@
                     <div class="crud-price-preview" id="pricePreview"></div>
                 </div>
                 <div class="crud-row-2">
-                    <div class="input-group"><label class="input-label">Ár megjegyzés</label><input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}"></div>
+                    <div class="input-group"><label class="input-label">Ár megjegyzés</label><input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}" placeholder="üresen: típus szerinti alapszöveg (pl. „2 fő, repülőjeggyel együtt”)"></div>
                     <div class="input-group"><label class="input-label">Érvényes eddig</label><input class="input-field" type="date" id="f_ervenyes" value="${escapeAttr(item.tpa_ervenyes)}"></div>
                 </div>
 
@@ -249,7 +285,7 @@
                             <div class="input-group"><label class="input-label">Visszaút dátuma</label><input class="input-field" type="date" id="kiwiReturn"></div>
                         </div>
                         <button class="btn btn-accent btn-sm" id="kiwiGenerateBtn" type="button">Link összeállítása</button>
-                        <div class="input-hint">A IATA-repülőtérkódokat és a dátumokat nem mentjük el – csak a lenti linkmezőt töltik ki.</div>
+                        <div class="input-hint">A dátumok az „Odaút / Hazaút" mezőkkel szinkronban mozognak (a link és a kártyán kiírt időpont így nem tud széttartani). A IATA-kódokat nem mentjük el.</div>
                     </div>
                     <div style="display:flex; gap:8px;">
                         <input class="input-field" id="f_kiwi" value="${escapeAttr(item.tpa_kiwi_link)}" placeholder="https://c111.travelpayouts.com/click?...">
@@ -327,7 +363,13 @@
             ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_ar'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updatePricePreview);
             });
+            document.getElementById('f_ajanlat_tipus').addEventListener('change', updatePricePreview);
             updatePricePreview();
+
+            ['f_indulas_datum', 'f_hazaut_datum'].forEach(id => {
+                document.getElementById(id).addEventListener('change', updateDatumInfo);
+            });
+            updateDatumInfo();
 
             contentQuill = setupQuillEditor('quill_content', 'f_content', item.content, 'Az ajánlat rövid, csábító leírása…');
 
@@ -339,7 +381,15 @@
 
             document.getElementById('kiwiBtn').addEventListener('click', () => {
                 const panel = document.getElementById('kiwiPanel');
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                const most_nyilik = panel.style.display === 'none';
+                panel.style.display = most_nyilik ? 'block' : 'none';
+                if (most_nyilik) {
+                    // Az utazás dátumaiból előtöltjük a link-összeállítót – ne kelljen kétszer beírni
+                    const indul = document.getElementById('f_indulas_datum').value;
+                    const haza = document.getElementById('f_hazaut_datum').value;
+                    if (indul && !document.getElementById('kiwiDeparture').value) document.getElementById('kiwiDeparture').value = indul;
+                    if (haza && !document.getElementById('kiwiReturn').value) document.getElementById('kiwiReturn').value = haza;
+                }
             });
             document.getElementById('kiwiGenerateBtn').addEventListener('click', runKiwiBuilder);
             document.getElementById('kiwiTestBtn').addEventListener('click', () => {
@@ -440,15 +490,39 @@
             }
         }
 
+        // Típushelyes összeg – UGYANAZ a logika, mint a WP-oldali tpa_teljes_ar():
+        // csak az aktuális típushoz tartozó utazási költség számít bele (a más
+        // típusnál beírt, most rejtett részár nem torzít).
         function updatePricePreview() {
+            const tipus = document.getElementById('f_ajanlat_tipus').value;
             const repjegy = parseFloat(document.getElementById('f_repjegy').value) || 0;
             const busz = parseFloat(document.getElementById('f_busz_ar').value) || 0;
             const szallas = parseFloat(document.getElementById('f_szallas_ar').value) || 0;
             const ar = document.getElementById('f_ar').value;
             const preview = document.getElementById('pricePreview');
             if (ar) { preview.textContent = ''; return; }
-            const osszeg = repjegy + busz + szallas;
+            const utazas = tipus === 'busz_szallas' ? busz : (tipus === 'csak_szallas' ? 0 : repjegy);
+            const osszeg = utazas + szallas;
             preview.textContent = osszeg > 0 ? `Számított összeg: ${osszeg.toLocaleString('hu-HU')} Ft` : '';
+        }
+
+        // ---- Dátum-visszajelzés: mit fog kiírni az oldal a két dátumból ----
+        function updateDatumInfo() {
+            const indul = document.getElementById('f_indulas_datum').value;
+            const haza = document.getElementById('f_hazaut_datum').value;
+            const info = document.getElementById('datumInfo');
+            if (!indul || !haza) {
+                info.textContent = 'Ha megadod mindkét dátumot, az időpont-szöveget és az éjszakák számát ezekből számoljuk – a lenti két mezőt üresen hagyhatod.';
+                return;
+            }
+            const i = new Date(indul), h = new Date(haza);
+            const ejszakak = Math.round((h - i) / 86400000);
+            if (ejszakak <= 0) {
+                info.textContent = '⚠️ A hazaút dátuma nem későbbi az odaútnál – ellenőrizd!';
+                return;
+            }
+            const fmt = d => d.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' });
+            info.textContent = `Az oldalon így jelenik meg: ${fmt(i)} – ${fmt(h)} · ${ejszakak} éjszaka`;
         }
 
         // Az "Ajánlat típusa" select alapján mutatja/rejti a típus-specifikus
@@ -479,13 +553,21 @@
 
         function runKiwiBuilder() {
             try {
+                const departure = document.getElementById('kiwiDeparture').value;
+                const returnDate = document.getElementById('kiwiReturn').value;
                 const link = buildKiwiLink({
                     from: document.getElementById('kiwiFrom').value,
                     to: document.getElementById('kiwiTo').value,
-                    departure: document.getElementById('kiwiDeparture').value,
-                    returnDate: document.getElementById('kiwiReturn').value,
+                    departure,
+                    returnDate,
                 });
                 document.getElementById('f_kiwi').value = link;
+                // A link dátumait visszatöltjük az utazás dátummezőibe, ha azok még
+                // üresek – ez lesz a kiírt időpont/éjszakaszám forrása, így a link és
+                // a kártya nem tud széttartani.
+                if (!document.getElementById('f_indulas_datum').value) document.getElementById('f_indulas_datum').value = departure;
+                if (!document.getElementById('f_hazaut_datum').value) document.getElementById('f_hazaut_datum').value = returnDate;
+                updateDatumInfo();
                 toast('Kiwi.com link összeállítva – ellenőrizd a "Tesztelés" gombbal!', 'success');
             } catch (e) {
                 toast(e.message, 'error');
@@ -550,6 +632,25 @@
             }
         }
 
+        // ---- Publikált ajánlat "teljességi" ellenőrzése (nem blokkol, csak jelez) ----
+        // A szakmai minimum: dátumok, szállás neve+ellátás, ár, és a típushoz
+        // tartozó foglalási link(ek).
+        function felviteliHianyok(body) {
+            const hianyok = [];
+            const tipus = body.tpa_ajanlat_tipus;
+            if (!body.tpa_indulas_datum || !body.tpa_hazaut_datum) hianyok.push('utazás dátumai');
+            if (!body.tpa_szallas_nev) hianyok.push('szállás neve');
+            if (!body.tpa_szallas_ellatas) hianyok.push('ellátás');
+            if (!body.tpa_ar && !body.tpa_szallas_ar && !body.tpa_repjegy_ar && !body.tpa_busz_ar) hianyok.push('ár');
+            if (tipus === 'repulo_szallas' && !body.tpa_kiwi_link) hianyok.push('Kiwi.com link');
+            if (tipus === 'busz_szallas' && !body.tpa_busz_link) hianyok.push('busz link');
+            if (!body.tpa_szallas_link) hianyok.push('szállás link');
+            if (tipus === 'repulo_szallas' && body.tpa_kiwi_link && !body.tpa_kiwi_link.includes('travelpayouts.com')) {
+                hianyok.push('a Kiwi-link nem a Travelpayouts-wrapper (így nem jár jutalék!)');
+            }
+            return hianyok;
+        }
+
         async function saveItem() {
             const body = {
                 title: document.getElementById('f_title').value.trim(),
@@ -560,10 +661,15 @@
                 seo_metadesc: document.getElementById('f_seo_metadesc').value,
                 tpa_celallomas: document.getElementById('f_celallomas').value,
                 tpa_indulas: document.getElementById('f_indulas').value,
+                tpa_indulas_datum: document.getElementById('f_indulas_datum').value,
+                tpa_hazaut_datum: document.getElementById('f_hazaut_datum').value,
                 tpa_idopont: document.getElementById('f_idopont').value,
                 tpa_ejszakak: document.getElementById('f_ejszakak').value,
                 tpa_uticel: document.getElementById('f_uticel').value,
                 tpa_ajanlat_tipus: document.getElementById('f_ajanlat_tipus').value,
+                tpa_szallas_nev: document.getElementById('f_szallas_nev').value,
+                tpa_szallas_csillag: document.getElementById('f_szallas_csillag').value,
+                tpa_szallas_ellatas: document.getElementById('f_szallas_ellatas').value,
                 tpa_repjegy_ar: document.getElementById('f_repjegy').value,
                 tpa_busz_ar: document.getElementById('f_busz_ar').value,
                 tpa_szallas_ar: document.getElementById('f_szallas_ar').value,
@@ -584,7 +690,12 @@
                     ? await apiCall(PROXY, { action: 'update', extraQuery: { id: activeId }, body })
                     : await apiCall(PROXY, { action: 'create', body });
                 activeId = saved.id;
-                toast('Elmentve!', 'success');
+                const hianyok = felviteliHianyok(body);
+                if (body.status === 'publish' && hianyok.length) {
+                    toast('Elmentve, de egy teljes ajánlathoz még hiányzik: ' + hianyok.join(', ') + '.', 'info');
+                } else {
+                    toast('Elmentve!', 'success');
+                }
                 await loadList();
                 renderEditor(saved);
             } catch (e) {
