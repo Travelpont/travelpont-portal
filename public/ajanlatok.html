@@ -47,7 +47,7 @@
         import { generateWithAI, generatePostCaption, generateSeoSuggestion } from './js/ai-helper.js';
         import { setupQuillEditor, setQuillContent } from './js/quill-helper.js';
         import { buildKiwiLink } from './js/kiwi-link-builder.js';
-        import { airportDatalistOptionsHtml } from './js/iata-airports.js';
+        import { AIRPORTS, airportDatalistOptionsHtml } from './js/iata-airports.js';
         import { attachCharCounter } from './js/char-counter.js';
         import { createSearchableSelect } from './js/searchable-select.js';
 
@@ -143,8 +143,9 @@
         function emptyItem() {
             return { id: null, title: '', content: '', status: 'publish', kategoriak: [], thumbnail_url: '',
                 tpa_ajanlat_tipus: 'repulo_szallas',
-                tpa_celallomas: '', tpa_indulas: '', tpa_indulas_datum: '', tpa_hazaut_datum: '',
-                tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '',
+                tpa_celallomas: '', tpa_indulas: '', tpa_indulas_iata: '', tpa_cel_iata: '', tpa_cel_varos: '',
+                tpa_indulas_datum: '', tpa_hazaut_datum: '',
+                tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '', tpa_miert_szuper: '', tpa_poggyasz: '',
                 tpa_szallas_nev: '', tpa_szallas_csillag: '', tpa_szallas_ellatas: '',
                 tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '',
                 tpa_ervenyes: '', tpa_kiwi_link: '', tpa_busz_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
@@ -201,9 +202,21 @@
                 </div>
 
                 <div class="crud-row-2">
-                    <div class="input-group"><label class="input-label">Célállomás</label><input class="input-field" id="f_celallomas" value="${escapeAttr(item.tpa_celallomas)}" placeholder="pl. Amalfi-part, Olaszország"></div>
-                    <div class="input-group"><label class="input-label">Indulás helye</label><input class="input-field" id="f_indulas" value="${escapeAttr(item.tpa_indulas)}" placeholder="pl. Budapest"></div>
+                    <div class="input-group"><label class="input-label">Célállomás</label><input class="input-field" id="f_celallomas" value="${escapeAttr(item.tpa_celallomas)}" placeholder="pl. Amalfi-part, Olaszország"><div class="input-hint">A kártya "Úti cél" felirata – a hely NEVE (pl. Lefkada), nem a reptér.</div></div>
+                    <div class="input-group"><label class="input-label">Indulás helye (város)</label><input class="input-field" id="f_indulas" value="${escapeAttr(item.tpa_indulas)}" placeholder="pl. Budapest"><div class="input-hint">Repülősnél a reptér kiválasztása automatikusan kitölti.</div></div>
                 </div>
+                <div class="crud-row-2" data-tpa-tipus="repulo_szallas">
+                    <div class="input-group">
+                        <label class="input-label">Indulási reptér</label>
+                        <div id="indulasReptMount"></div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Érkezési reptér</label>
+                        <div id="celReptMount"></div>
+                        <input type="hidden" id="f_cel_varos" value="${escapeAttr(item.tpa_cel_varos)}">
+                    </div>
+                </div>
+                <div class="input-hint" data-tpa-tipus="repulo_szallas" style="margin:-6px 0 10px;">A kártyán az útvonal reptérkódokkal jelenik meg (pl. BUD → PVK), alatta kisbetűvel a városok. A kiválasztás a Kiwi-linkösszeállítót is kitölti.</div>
                 <div class="crud-row-2">
                     <div class="input-group"><label class="input-label">Odaút / érkezés dátuma</label><input class="input-field" type="date" id="f_indulas_datum" value="${escapeAttr(item.tpa_indulas_datum)}"></div>
                     <div class="input-group"><label class="input-label">Hazaút / távozás dátuma</label><input class="input-field" type="date" id="f_hazaut_datum" value="${escapeAttr(item.tpa_hazaut_datum)}"></div>
@@ -217,6 +230,11 @@
                     <label class="input-label">Úticél</label>
                     <div id="uticelMount"></div>
                     <div class="input-hint">Kezdj gépelni (város vagy ország) a kereséshez. Az ajánlat automatikusan megjelenik a kiválasztott Úticél oldalán.</div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Miért szuper ez az ajánlat? (soronként egy pont)</label>
+                    <textarea class="input-field" id="f_miert_szuper" rows="3" placeholder="közvetlen járat Budapestről&#10;a strand 200 méterre&#10;szeptemberben még 26 fok">${escapeHtml(item.tpa_miert_szuper || '')}</textarea>
+                    <div class="input-hint">2-4 rövid, személyes érv – az ajánlat oldalán pipás listaként jelenik meg. Ez a ti vadász-hangotok!</div>
                 </div>
                 <div class="input-group">
                     <label class="input-label">Kategóriák</label>
@@ -268,6 +286,16 @@
                 <div class="crud-row-2">
                     <div class="input-group"><label class="input-label">Ár megjegyzés</label><input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}" placeholder="üresen: típus szerinti alapszöveg (pl. „2 fő, repülőjeggyel együtt”)"></div>
                     <div class="input-group"><label class="input-label">Érvényes eddig</label><input class="input-field" type="date" id="f_ervenyes" value="${escapeAttr(item.tpa_ervenyes)}"></div>
+                </div>
+                <div class="input-group" data-tpa-tipus="repulo_szallas">
+                    <label class="input-label">Poggyász az árban</label>
+                    <select class="input-field" id="f_poggyasz">
+                        <option value="" ${!item.tpa_poggyasz ? 'selected' : ''}>— nincs megadva —</option>
+                        <option value="kis_kezi" ${item.tpa_poggyasz === 'kis_kezi' ? 'selected' : ''}>Kis kézipoggyász (ülés alá férő)</option>
+                        <option value="kezi" ${item.tpa_poggyasz === 'kezi' ? 'selected' : ''}>Kézipoggyász (fedélzeti táska/trolley)</option>
+                        <option value="feladott" ${item.tpa_poggyasz === 'feladott' ? 'selected' : ''}>Kézipoggyász + feladott bőrönd</option>
+                    </select>
+                    <div class="input-hint">A fapados árak jellemzően csak kis kézipoggyászt tartalmaznak – az őszinteség itt bizalmi tőke.</div>
                 </div>
 
                 <div class="crud-section-title">Affiliate linkek</div>
@@ -360,6 +388,34 @@
                 placeholder: 'Kezdj gépelni… (pl. Schladming vagy Ausztria)',
             });
 
+            // Reptér-választók (repülős típusnál): a kód a rejtett mezőbe kerül,
+            // a városnév automatikusan kitölti a társmezőket + a Kiwi-összeállítót.
+            const reptOptions = AIRPORTS.map(a => ({ id: a.code, label: `${a.label} (${a.code})` }));
+            createSearchableSelect(document.getElementById('indulasReptMount'), {
+                options: reptOptions,
+                selectedId: item.tpa_indulas_iata,
+                hiddenId: 'f_indulas_iata',
+                placeholder: 'Kezdj gépelni… (pl. Budapest vagy BUD)',
+                onSelect: (code) => {
+                    const repter = AIRPORTS.find(a => a.code === code);
+                    document.getElementById('f_indulas').value = repter ? repter.label : '';
+                    const kiwiFrom = document.getElementById('kiwiFrom');
+                    if (kiwiFrom) kiwiFrom.value = code;
+                },
+            });
+            createSearchableSelect(document.getElementById('celReptMount'), {
+                options: reptOptions,
+                selectedId: item.tpa_cel_iata,
+                hiddenId: 'f_cel_iata',
+                placeholder: 'Kezdj gépelni… (pl. Preveza vagy PVK)',
+                onSelect: (code) => {
+                    const repter = AIRPORTS.find(a => a.code === code);
+                    document.getElementById('f_cel_varos').value = repter ? repter.label : '';
+                    const kiwiTo = document.getElementById('kiwiTo');
+                    if (kiwiTo) kiwiTo.value = code;
+                },
+            });
+
             ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_ar'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updatePricePreview);
             });
@@ -384,11 +440,16 @@
                 const most_nyilik = panel.style.display === 'none';
                 panel.style.display = most_nyilik ? 'block' : 'none';
                 if (most_nyilik) {
-                    // Az utazás dátumaiból előtöltjük a link-összeállítót – ne kelljen kétszer beírni
+                    // Az utazás dátumaiból + a kiválasztott repterekből előtöltjük a
+                    // link-összeállítót – ne kelljen semmit kétszer beírni
                     const indul = document.getElementById('f_indulas_datum').value;
                     const haza = document.getElementById('f_hazaut_datum').value;
                     if (indul && !document.getElementById('kiwiDeparture').value) document.getElementById('kiwiDeparture').value = indul;
                     if (haza && !document.getElementById('kiwiReturn').value) document.getElementById('kiwiReturn').value = haza;
+                    const indulasIata = document.getElementById('f_indulas_iata').value;
+                    const celIata = document.getElementById('f_cel_iata').value;
+                    if (indulasIata && !document.getElementById('kiwiFrom').value) document.getElementById('kiwiFrom').value = indulasIata;
+                    if (celIata && !document.getElementById('kiwiTo').value) document.getElementById('kiwiTo').value = celIata;
                 }
             });
             document.getElementById('kiwiGenerateBtn').addEventListener('click', runKiwiBuilder);
@@ -642,6 +703,8 @@
             if (!body.tpa_szallas_nev) hianyok.push('szállás neve');
             if (!body.tpa_szallas_ellatas) hianyok.push('ellátás');
             if (!body.tpa_ar && !body.tpa_szallas_ar && !body.tpa_repjegy_ar && !body.tpa_busz_ar) hianyok.push('ár');
+            if (tipus === 'repulo_szallas' && (!body.tpa_indulas_iata || !body.tpa_cel_iata)) hianyok.push('repterek (útvonal)');
+            if (tipus === 'repulo_szallas' && !body.tpa_poggyasz) hianyok.push('poggyász-infó');
             if (tipus === 'repulo_szallas' && !body.tpa_kiwi_link) hianyok.push('Kiwi.com link');
             if (tipus === 'busz_szallas' && !body.tpa_busz_link) hianyok.push('busz link');
             if (!body.tpa_szallas_link) hianyok.push('szállás link');
@@ -661,12 +724,17 @@
                 seo_metadesc: document.getElementById('f_seo_metadesc').value,
                 tpa_celallomas: document.getElementById('f_celallomas').value,
                 tpa_indulas: document.getElementById('f_indulas').value,
+                tpa_indulas_iata: document.getElementById('f_indulas_iata').value,
+                tpa_cel_iata: document.getElementById('f_cel_iata').value,
+                tpa_cel_varos: document.getElementById('f_cel_varos').value,
                 tpa_indulas_datum: document.getElementById('f_indulas_datum').value,
                 tpa_hazaut_datum: document.getElementById('f_hazaut_datum').value,
                 tpa_idopont: document.getElementById('f_idopont').value,
                 tpa_ejszakak: document.getElementById('f_ejszakak').value,
                 tpa_uticel: document.getElementById('f_uticel').value,
+                tpa_miert_szuper: document.getElementById('f_miert_szuper').value,
                 tpa_ajanlat_tipus: document.getElementById('f_ajanlat_tipus').value,
+                tpa_poggyasz: document.getElementById('f_poggyasz').value,
                 tpa_szallas_nev: document.getElementById('f_szallas_nev').value,
                 tpa_szallas_csillag: document.getElementById('f_szallas_csillag').value,
                 tpa_szallas_ellatas: document.getElementById('f_szallas_ellatas').value,

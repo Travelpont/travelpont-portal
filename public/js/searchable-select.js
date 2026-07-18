@@ -28,6 +28,9 @@ function norm(s) {
  *   hiddenId   {string}              a rejtett <input> id-je (ezt olvassa a mentés)
  *   placeholder{string}
  *   emptyLabel {string}              a "nincs kiválasztva" elem címkéje
+ *   onSelect   {function(id, label)} opcionális – a FELHASZNÁLÓI választáskor fut
+ *                                    (init/blur-visszaálláskor nem), pl. társmezők
+ *                                    automatikus kitöltéséhez
  * @returns {{ getValue, setValue, destroy, getEl }}
  */
 export function createSearchableSelect(mountEl, opts = {}) {
@@ -104,6 +107,7 @@ export function createSearchableSelect(mountEl, opts = {}) {
         applyValue(it.id);
         closeMenu();
         input.blur();
+        if (typeof opts.onSelect === 'function') opts.onSelect(it.id, it.label);
     }
 
     // ── Események ─────────────────────────────────────────────────────────────
