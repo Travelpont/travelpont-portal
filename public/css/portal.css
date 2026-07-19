@@ -337,6 +337,38 @@ textarea.input-field { resize: vertical; min-height: 90px; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .fade-up { opacity: 0; animation: fadeUp 0.4s ease forwards; }
 
+/* ---- Ajánlat-szerkesztő: sorszámozott blokkok + ugrómenü + sticky mentés-sáv ---- */
+.crud-blokk { scroll-margin-top: 84px; }
+
+.crud-ugromenu { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+.crud-ugro {
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 20px;
+    color: var(--text-secondary); font-size: 12px; font-weight: 500; padding: 4px 12px;
+    cursor: pointer; transition: all var(--transition); white-space: nowrap;
+}
+.crud-ugro:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Az árkalkuláció élő végösszege (4️⃣ blokk) */
+.crud-osszeg-nagy {
+    font-size: 14px; color: var(--text-secondary);
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px;
+}
+.crud-osszeg-nagy strong { font-size: 1.3em; color: var(--gold); font-variant-numeric: tabular-nums; }
+.crud-osszeg-mellek { font-size: 12px; color: var(--text-muted); }
+
+/* Sticky mentés-sáv a szerkesztő kártya alján – mindig látható */
+.crud-mentes-sav {
+    position: sticky; bottom: 0; z-index: 20;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    margin: 24px -24px -24px; padding: 14px 24px;
+    background: var(--bg-card); border-top: 1px solid var(--border);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.crud-teljesseg { font-size: 12.5px; line-height: 1.4; flex: 1 1 200px; min-width: 160px; }
+.crud-teljesseg--kesz { color: var(--green); }
+.crud-teljesseg--hiany { color: var(--gold); }
+
 @media (max-width: 768px) {
     .toast-container { bottom: 16px; right: 16px; left: 16px; }
     .toast { max-width: 100%; }
