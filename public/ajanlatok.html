@@ -155,7 +155,7 @@
                 tpa_indulas_datum: '', tpa_hazaut_datum: '',
                 tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '', tpa_miert_szuper: '', tpa_poggyasz: '',
                 tpa_szallas_nev: '', tpa_szallas_csillag: '', tpa_szallas_ellatas: '',
-                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_fo_szam: '2', tpa_ar: '', tpa_ar_megjegyzes: '',
+                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_fo_szam: '2', tpa_ar: '', tpa_ar_tol: 'tol', tpa_ar_megjegyzes: '',
                 tpa_ervenyes: '', tpa_statusz: 'aktiv', tpa_talalat_datuma: '',
                 tpa_kiwi_link: '', tpa_busz_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
                 seo_title: '', seo_metadesc: '', galeria: [] };
@@ -359,10 +359,20 @@
                         </div>
                     </div>
                     <div class="crud-osszeg-nagy" id="pricePreview"></div>
-                    <div class="input-group">
-                        <label class="input-label">Ár megjegyzés</label>
-                        <input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}" placeholder="üresen: típus szerinti alapszöveg (pl. „2 fő, repülőjeggyel együtt”)">
-                        <div class="input-hint">Az ár alatti apróbetűs szöveg az oldalon – üresen az ajánlat típusához illő alapszöveg jelenik meg.</div>
+                    <div class="crud-row-2">
+                        <div class="input-group">
+                            <label class="input-label">Ár kiírása</label>
+                            <select class="input-field" id="f_ar_tol">
+                                <option value="tol" ${(item.tpa_ar_tol || 'tol') !== 'pontos' ? 'selected' : ''}>„Ft-tól” ár (alapértelmezett)</option>
+                                <option value="pontos" ${item.tpa_ar_tol === 'pontos' ? 'selected' : ''}>Pontos ár (fix áras deal)</option>
+                            </select>
+                            <div class="input-hint">Alapból minden összár „Ft-tól” – az árak és a szállás-opciók változnak. Csak tényleg fix árnál válts pontosra.</div>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Ár megjegyzés</label>
+                            <input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}" placeholder="üresen: típus szerinti alapszöveg (pl. „2 fő, repülőjeggyel együtt”)">
+                            <div class="input-hint">Az ár alatti apróbetűs szöveg – üresen az ajánlat típusához illő alapszöveg.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -524,6 +534,7 @@
             ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_fo_szam', 'f_ar'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updatePricePreview);
             });
+            document.getElementById('f_ar_tol').addEventListener('change', updatePricePreview);
             updatePricePreview();
 
             ['f_indulas_datum', 'f_hazaut_datum'].forEach(id => {
@@ -660,13 +671,15 @@
 
             const utazas = tipus === 'busz_szallas' ? busz : (tipus === 'csak_szallas' ? 0 : repjegy);
             const szamitott = utazas * fo + szallas;
+            // "-tól" toldalék az összáron (WP-oldali tpa_osszeg_format() párja)
+            const tol = document.getElementById('f_ar_tol').value !== 'pontos' ? '-tól' : '';
             const ft = n => n.toLocaleString('hu-HU') + ' Ft';
 
             if (arKezi > 0) {
-                preview.innerHTML = `Az oldalon megjelenő ár (kézi): <strong>${ft(arKezi)}</strong> / ${fo} fő`
+                preview.innerHTML = `Az oldalon megjelenő ár (kézi): <strong>${ft(arKezi)}${tol}</strong> / ${fo} fő`
                     + (szamitott > 0 ? ` <span class="crud-osszeg-mellek">– a részárakból számítva ${ft(szamitott)} lenne</span>` : '');
             } else if (szamitott > 0) {
-                preview.innerHTML = `Az oldalon megjelenő ár: <strong>${ft(szamitott)}</strong> / ${fo} fő`;
+                preview.innerHTML = `Az oldalon megjelenő ár: <strong>${ft(szamitott)}${tol}</strong> / ${fo} fő`;
             } else {
                 preview.textContent = 'Add meg a jegyárat és/vagy a szállás árát – a végösszeg itt jelenik meg élőben.';
             }
@@ -853,6 +866,7 @@
                 tpa_szallas_ar: document.getElementById('f_szallas_ar').value,
                 tpa_fo_szam: document.getElementById('f_fo_szam').value,
                 tpa_ar: document.getElementById('f_ar').value,
+                tpa_ar_tol: document.getElementById('f_ar_tol').value,
                 tpa_ar_megjegyzes: document.getElementById('f_ar_megjegyzes').value,
                 tpa_ervenyes: document.getElementById('f_ervenyes').value,
                 tpa_statusz: document.getElementById('f_statusz').value,
