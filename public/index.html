@@ -68,8 +68,9 @@
             try {
                 const data = await apiCall(API_CONFIG.AJANLAT_PROXY_URL, { action: 'list', extraQuery: { status: 'publish', per_page: 200 } });
                 const items = data.items || [];
-                const lejartak = items.filter(it => it.lejart);
-                const lejarok  = items.filter(it => !it.lejart && it.hatralevo_napok !== null && it.hatralevo_napok >= 0 && it.hatralevo_napok <= 7);
+                // deal_lejart: dátum-lejárat VAGY kézi "Lejárt" státusz (plugin v1.14+; régi API-n undefined → it.lejart a fallback)
+                const lejartak = items.filter(it => it.deal_lejart || it.lejart);
+                const lejarok  = items.filter(it => !(it.deal_lejart || it.lejart) && it.hatralevo_napok !== null && it.hatralevo_napok >= 0 && it.hatralevo_napok <= 7);
 
                 if (lejartak.length === 0 && lejarok.length === 0) {
                     content.innerHTML = '<p style="color:var(--text-secondary); font-size:14px;">✅ Minden publikált ajánlat rendben – nincs lejáró/lejárt.</p>';

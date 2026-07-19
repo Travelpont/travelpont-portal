@@ -95,8 +95,9 @@
 
         // ---- Karbantartás-szűrő alkalmazása (Dashboard "lejárt"/"lejáró" linkjeiből) ----
         function filterItems(list) {
-            if (activeFilter === 'lejart') return list.filter(it => it.lejart);
-            if (activeFilter === 'lejaro') return list.filter(it => !it.lejart && it.hatralevo_napok !== null && it.hatralevo_napok >= 0 && it.hatralevo_napok <= 7);
+            // deal_lejart: dátum-lejárat VAGY kézi "Lejárt" státusz (plugin v1.14+; régi API-n undefined → it.lejart a fallback)
+            if (activeFilter === 'lejart') return list.filter(it => it.deal_lejart || it.lejart);
+            if (activeFilter === 'lejaro') return list.filter(it => !(it.deal_lejart || it.lejart) && it.hatralevo_napok !== null && it.hatralevo_napok >= 0 && it.hatralevo_napok <= 7);
             return list;
         }
 
@@ -119,7 +120,7 @@
                     ${it.thumbnail_url ? `<img class="crud-list-thumb" src="${it.thumbnail_url}">` : `<div class="crud-list-thumb"></div>`}
                     <div style="min-width:0;">
                         <div class="crud-list-title">${escapeHtml(it.title || '(cím nélkül)')}</div>
-                        <div class="crud-list-sub">${it.status === 'draft' ? 'Piszkozat' : (it.lejart ? 'Lejárt' : it.ar_format || '')}</div>
+                        <div class="crud-list-sub">${it.status === 'draft' ? 'Piszkozat' : ((it.deal_lejart || it.lejart) ? 'Lejárt' : it.ar_format || '')}</div>
                     </div>
                 </div>`).join('');
             c.querySelectorAll('.crud-list-item').forEach(el => {
@@ -147,8 +148,9 @@
                 tpa_indulas_datum: '', tpa_hazaut_datum: '',
                 tpa_idopont: '', tpa_ejszakak: '', tpa_uticel: '', tpa_miert_szuper: '', tpa_poggyasz: '',
                 tpa_szallas_nev: '', tpa_szallas_csillag: '', tpa_szallas_ellatas: '',
-                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_ar: '', tpa_ar_megjegyzes: '',
-                tpa_ervenyes: '', tpa_kiwi_link: '', tpa_busz_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
+                tpa_repjegy_ar: '', tpa_busz_ar: '', tpa_szallas_ar: '', tpa_fo_szam: '2', tpa_ar: '', tpa_ar_megjegyzes: '',
+                tpa_ervenyes: '', tpa_statusz: 'aktiv', tpa_talalat_datuma: '',
+                tpa_kiwi_link: '', tpa_busz_link: '', tpa_szallas_link: '', tpa_szallas_platform: '',
                 seo_title: '', seo_metadesc: '', galeria: [] };
         }
 
@@ -274,18 +276,36 @@
 
                 <div class="crud-section-title">Ár és érvényesség</div>
                 <div class="crud-row-2">
-                    <div class="input-group" data-tpa-tipus="repulo_szallas"><label class="input-label">Repjegy ár (Ft)</label><input class="input-field" type="number" min="0" id="f_repjegy" value="${escapeAttr(item.tpa_repjegy_ar)}"></div>
-                    <div class="input-group" data-tpa-tipus="busz_szallas"><label class="input-label">Buszjegy ár (Ft)</label><input class="input-field" type="number" min="0" id="f_busz_ar" value="${escapeAttr(item.tpa_busz_ar)}"></div>
+                    <div class="input-group" data-tpa-tipus="repulo_szallas"><label class="input-label">Repjegy ára (Ft/fő, oda-vissza)</label><input class="input-field" type="number" min="0" id="f_repjegy" value="${escapeAttr(item.tpa_repjegy_ar)}"><div class="input-hint">EGY FŐRE – az összesenhez a fő-számmal szorozzuk.</div></div>
+                    <div class="input-group" data-tpa-tipus="busz_szallas"><label class="input-label">Buszjegy ára (Ft/fő, oda-vissza)</label><input class="input-field" type="number" min="0" id="f_busz_ar" value="${escapeAttr(item.tpa_busz_ar)}"><div class="input-hint">EGY FŐRE – az összesenhez a fő-számmal szorozzuk.</div></div>
                 </div>
-                <div class="input-group"><label class="input-label">Szállás ár (Ft)</label><input class="input-field" type="number" min="0" id="f_szallas_ar" value="${escapeAttr(item.tpa_szallas_ar)}"></div>
+                <div class="crud-row-2">
+                    <div class="input-group"><label class="input-label">Szállás ára (Ft, összesen)</label><input class="input-field" type="number" min="0" id="f_szallas_ar" value="${escapeAttr(item.tpa_szallas_ar)}"><div class="input-hint">A TELJES csomagra, nem főnként.</div></div>
+                    <div class="input-group"><label class="input-label">Hány főre szól</label><input class="input-field" type="number" min="1" id="f_fo_szam" value="${escapeAttr(item.tpa_fo_szam || '2')}"></div>
+                </div>
                 <div class="input-group">
-                    <label class="input-label">Ár összesen (Ft) – ha üres, a repjegy+szállás összegét használjuk</label>
+                    <label class="input-label">Ár összesen (Ft) – ha üres, a repjegy×fő + szállás összegét használjuk</label>
                     <input class="input-field" type="number" min="0" id="f_ar" value="${escapeAttr(item.tpa_ar)}">
                     <div class="crud-price-preview" id="pricePreview"></div>
                 </div>
                 <div class="crud-row-2">
                     <div class="input-group"><label class="input-label">Ár megjegyzés</label><input class="input-field" id="f_ar_megjegyzes" value="${escapeAttr(item.tpa_ar_megjegyzes)}" placeholder="üresen: típus szerinti alapszöveg (pl. „2 fő, repülőjeggyel együtt”)"></div>
                     <div class="input-group"><label class="input-label">Érvényes eddig</label><input class="input-field" type="date" id="f_ervenyes" value="${escapeAttr(item.tpa_ervenyes)}"></div>
+                </div>
+                <div class="crud-row-2">
+                    <div class="input-group">
+                        <label class="input-label">Deal státusza</label>
+                        <select class="input-field" id="f_statusz">
+                            <option value="aktiv" ${(item.tpa_statusz || 'aktiv') !== 'lejart' ? 'selected' : ''}>Aktív</option>
+                            <option value="lejart" ${item.tpa_statusz === 'lejart' ? 'selected' : ''}>Lejárt</option>
+                        </select>
+                        <div class="input-hint">Lejártra állítva NEM tűnik el: halvány árakkal + „a jó árak visszatérnek” üzenettel marad kint.</div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Találat dátuma</label>
+                        <input class="input-field" value="${escapeAttr(item.tpa_talalat_datuma || '')}" placeholder="első publikáláskor automatikus" disabled>
+                        <div class="input-hint">Automatikus, nem szerkeszthető – ettől számít az ár-frissesség figyelmeztetés a kártyán.</div>
+                    </div>
                 </div>
                 <div class="input-group" data-tpa-tipus="repulo_szallas">
                     <label class="input-label">Poggyász az árban</label>
@@ -416,7 +436,7 @@
                 },
             });
 
-            ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_ar'].forEach(id => {
+            ['f_repjegy', 'f_busz_ar', 'f_szallas_ar', 'f_fo_szam', 'f_ar'].forEach(id => {
                 document.getElementById(id).addEventListener('input', updatePricePreview);
             });
             document.getElementById('f_ajanlat_tipus').addEventListener('change', updatePricePreview);
@@ -553,18 +573,20 @@
 
         // Típushelyes összeg – UGYANAZ a logika, mint a WP-oldali tpa_teljes_ar():
         // csak az aktuális típushoz tartozó utazási költség számít bele (a más
-        // típusnál beírt, most rejtett részár nem torzít).
+        // típusnál beírt, most rejtett részár nem torzít). A repjegy/buszjegy
+        // FŐNKÉNTI ár (Ajánlatok plugin v1.14+): a fő-számmal szorozzuk.
         function updatePricePreview() {
             const tipus = document.getElementById('f_ajanlat_tipus').value;
             const repjegy = parseFloat(document.getElementById('f_repjegy').value) || 0;
             const busz = parseFloat(document.getElementById('f_busz_ar').value) || 0;
             const szallas = parseFloat(document.getElementById('f_szallas_ar').value) || 0;
+            const fo = Math.max(1, parseInt(document.getElementById('f_fo_szam').value) || 2);
             const ar = document.getElementById('f_ar').value;
             const preview = document.getElementById('pricePreview');
             if (ar) { preview.textContent = ''; return; }
             const utazas = tipus === 'busz_szallas' ? busz : (tipus === 'csak_szallas' ? 0 : repjegy);
-            const osszeg = utazas + szallas;
-            preview.textContent = osszeg > 0 ? `Számított összeg: ${osszeg.toLocaleString('hu-HU')} Ft` : '';
+            const osszeg = utazas * fo + szallas;
+            preview.textContent = osszeg > 0 ? `Számított összeg: ${osszeg.toLocaleString('hu-HU')} Ft / ${fo} fő` : '';
         }
 
         // ---- Dátum-visszajelzés: mit fog kiírni az oldal a két dátumból ----
@@ -741,9 +763,11 @@
                 tpa_repjegy_ar: document.getElementById('f_repjegy').value,
                 tpa_busz_ar: document.getElementById('f_busz_ar').value,
                 tpa_szallas_ar: document.getElementById('f_szallas_ar').value,
+                tpa_fo_szam: document.getElementById('f_fo_szam').value,
                 tpa_ar: document.getElementById('f_ar').value,
                 tpa_ar_megjegyzes: document.getElementById('f_ar_megjegyzes').value,
                 tpa_ervenyes: document.getElementById('f_ervenyes').value,
+                tpa_statusz: document.getElementById('f_statusz').value,
                 tpa_kiwi_link: document.getElementById('f_kiwi').value,
                 tpa_busz_link: document.getElementById('f_busz_link').value,
                 tpa_szallas_link: document.getElementById('f_szallas_link').value,
